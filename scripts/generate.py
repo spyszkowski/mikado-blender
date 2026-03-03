@@ -194,6 +194,14 @@ def setup_camera():
     half_w = CAM_H * _m.tan(fov / 2)
     print(f'Camera at Z={CAM_H:.3f}m, FOV={RENDER["camera"]["fov_deg"]}°, '
           f'covers ±{half_w*1000:.0f}mm at table level')
+
+    # Diagnostic: print where camera is looking
+    bpy.context.view_layer.update()
+    cam_mat = cam.matrix_world
+    forward = cam_mat.col[2]   # camera -Z in world space = col[2] negated
+    print(f'Camera world pos: {tuple(round(v,3) for v in cam_mat.translation)}')
+    print(f'Camera -Z (look direction): {tuple(round(-v,3) for v in forward[:3])}')
+
     return cam
 
 
@@ -210,7 +218,13 @@ def setup_lighting():
     light = bpy.context.active_object
     light.data.energy = energy
 
-    # Add ambient world light so Cycles doesn't render pure black
+    # Add a sun lamp pointing straight down — reliable for top-down scenes
+    bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
+    sun = bpy.context.active_object
+    sun.rotation_euler = (0, 0, 0)   # default sun points down in Blender
+    sun.data.energy = 3.0
+
+    # World background: neutral grey (not white, not black)
     world = bpy.context.scene.world
     if world is None:
         world = bpy.data.worlds.new("World")
@@ -218,8 +232,8 @@ def setup_lighting():
     world.use_nodes = True
     bg_node = world.node_tree.nodes.get("Background")
     if bg_node:
-        bg_node.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
-        bg_node.inputs["Strength"].default_value = 0.5  # soft fill light
+        bg_node.inputs["Color"].default_value = (0.1, 0.1, 0.1, 1.0)
+        bg_node.inputs["Strength"].default_value = 1.0
 
     return light
 
