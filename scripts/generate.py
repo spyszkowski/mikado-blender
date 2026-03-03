@@ -80,6 +80,11 @@ SIM_STEPS = RENDER["physics"]["sim_steps"]
 # ---------------------------------------------------------------------------
 
 def clear_scene():
+    # Remove rigid body world first — it caches object references that become
+    # stale after deletion, causing sticks to fall through the floor on scene 2+.
+    if bpy.context.scene.rigidbody_world is not None:
+        bpy.ops.rigidbody.world_remove()
+
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete()
     for mat in bpy.data.materials:
@@ -121,12 +126,6 @@ def add_stick(class_name, location, rotation_euler):
     )
     stick = bpy.context.active_object
     stick.name = f"stick_{class_name}_{random.randint(0, 99999)}"
-
-    # Record the world-space endpoints NOW, before transform_apply resets rotation.
-    # After transform_apply the local Z is no longer the stick axis, so we store
-    # the axis vector on the object for use by the label exporter.
-    rot_mat = stick.rotation_euler.to_matrix()
-    stick["axis"] = list(rot_mat @ Vector((0, 0, 1)))  # world-space unit vector along stick
 
     # Slight per-stick colour variation — real wood sticks vary in tone
     r, g, b = BODY_COLOR
@@ -304,14 +303,11 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     from bpy_extras.object_utils import world_to_camera_view
 
     # Get the world-space endpoints of the stick's long axis.
-    # We use the axis stored at spawn time because transform_apply(rotation=True)
-    # bakes the rotation into the mesh, resetting local Z to an arbitrary direction.
-    center = stick_obj.matrix_world.translation
-    axis = stick_obj.get("axis")
-    if axis:
-        half_vec = Vector(axis) * (L / 2)
-    else:
-        half_vec = stick_obj.matrix_world.to_3x3() @ Vector((0, 0, L / 2))
+    # After transform_apply(rotation=True) the mesh long axis is local Z, and
+    # physics updates matrix_world — so col[2] gives the current world-space axis.
+    mat = stick_obj.matrix_world
+    half_vec = mat.to_3x3() @ Vector((0, 0, L / 2))
+    center = mat.translation
     p1_world = center + half_vec
     p2_world = center - half_vec
 
