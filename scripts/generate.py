@@ -164,10 +164,10 @@ def add_stick(class_name, location, rotation_euler):
     # Rigid body — active (falls under gravity)
     bpy.ops.rigidbody.object_add()
     stick.rigid_body.type = "ACTIVE"
-    stick.rigid_body.collision_shape = "CAPSULE"
+    stick.rigid_body.collision_shape = "MESH"   # exact mesh: sticks catch on each other at angles
     stick.rigid_body.mass = 0.005   # 5g per stick
     stick.rigid_body.restitution = 0.1
-    stick.rigid_body.friction = 0.8
+    stick.rigid_body.friction = 0.9   # high friction so sticks stay where they land
 
     stick["class_name"] = class_name
     return stick
