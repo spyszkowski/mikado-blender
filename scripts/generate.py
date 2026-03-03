@@ -113,11 +113,27 @@ def add_table(color):
     table.name = "Table"
     mat = make_material("TableMat", color, roughness=0.8)
     table.data.materials.append(mat)
-    # Apply transforms BEFORE adding rigid body (required — see Blender T81814)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     bpy.ops.rigidbody.object_add()
     table.rigid_body.type = "PASSIVE"
     table.rigid_body.collision_shape = "MESH"
+
+    # Small central mound — sticks land across it and rest at natural angles
+    # instead of all settling flat on a perfectly level surface.
+    mound_r = random.uniform(0.015, 0.025)   # 15–25mm radius
+    mound_h = random.uniform(0.003, 0.006)   # 3–6mm tall
+    bpy.ops.mesh.primitive_cylinder_add(
+        radius=mound_r, depth=mound_h,
+        location=(random.uniform(-0.01, 0.01), random.uniform(-0.01, 0.01), mound_h / 2)
+    )
+    mound = bpy.context.active_object
+    mound.name = "Mound"
+    mound.data.materials.append(mat)   # same colour as table
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    bpy.ops.rigidbody.object_add()
+    mound.rigid_body.type = "PASSIVE"
+    mound.rigid_body.collision_shape = "MESH"
+
     return table
 
 
@@ -181,10 +197,10 @@ def add_stick(class_name, location, rotation_euler):
     stick.rigid_body.type = "ACTIVE"
     stick.rigid_body.collision_shape = "CONVEX_HULL"
     stick.rigid_body.mass = 0.005
-    stick.rigid_body.restitution = 0.1
-    stick.rigid_body.friction = 0.9
-    stick.rigid_body.angular_damping = 0.4
-    stick.rigid_body.linear_damping = 0.4
+    stick.rigid_body.restitution = 0.4   # bouncier — sticks deflect off each other
+    stick.rigid_body.friction = 0.4      # less friction — allows sliding into varied angles
+    stick.rigid_body.angular_damping = 0.1  # low — sticks spin freely on impact
+    stick.rigid_body.linear_damping = 0.1
 
     stick["class_name"] = class_name
     return stick
