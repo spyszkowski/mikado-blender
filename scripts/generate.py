@@ -166,15 +166,13 @@ def add_stick(class_name, location, rotation_euler):
         bpy.context.view_layer.objects.active = stick
         bpy.ops.object.join()
 
-    # Bake the spawn rotation into the mesh data so the collision hull is
-    # computed from the actual orientation, not the original vertical cylinder.
-    # Without this, a horizontal stick still gets a vertical capsule and hovers.
-    bpy.ops.object.transform_apply(rotation=True)
-
-    # Rigid body — active (falls under gravity)
+    # Rigid body — active (falls under gravity).
+    # CONVEX_HULL is computed from world-space vertices (respects object rotation)
+    # so it wraps the stick correctly without needing transform_apply.
+    # CAPSULE/CYLINDER use local axes and hover when the stick is rotated.
     bpy.ops.rigidbody.object_add()
     stick.rigid_body.type = "ACTIVE"
-    stick.rigid_body.collision_shape = "CAPSULE"
+    stick.rigid_body.collision_shape = "CONVEX_HULL"
     stick.rigid_body.mass = 0.005   # 5g per stick
     stick.rigid_body.restitution = 0.1
     stick.rigid_body.friction = 0.9
