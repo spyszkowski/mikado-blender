@@ -161,13 +161,18 @@ def add_stick(class_name, location, rotation_euler):
         bpy.context.view_layer.objects.active = stick
         bpy.ops.object.join()
 
+    # Bake the spawn rotation into the mesh data so the collision hull is
+    # computed from the actual orientation, not the original vertical cylinder.
+    # Without this, a horizontal stick still gets a vertical capsule and hovers.
+    bpy.ops.object.transform_apply(rotation=True)
+
     # Rigid body — active (falls under gravity)
     bpy.ops.rigidbody.object_add()
     stick.rigid_body.type = "ACTIVE"
-    stick.rigid_body.collision_shape = "CAPSULE"  # stable; MESH causes objects to fall through floor
+    stick.rigid_body.collision_shape = "CAPSULE"
     stick.rigid_body.mass = 0.005   # 5g per stick
     stick.rigid_body.restitution = 0.1
-    stick.rigid_body.friction = 0.9   # high friction so sticks stay where they land
+    stick.rigid_body.friction = 0.9
 
     stick["class_name"] = class_name
     return stick
