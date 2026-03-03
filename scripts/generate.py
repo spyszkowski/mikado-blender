@@ -214,10 +214,16 @@ def setup_camera():
 
 
 def setup_lighting():
-    # Sun exactly vertical — shadows fall directly under sticks, no displacement
+    # Sun with a small random tilt (up to ±20°) for natural shadow variation.
+    # Shadow offset = stick_elevation × tan(tilt). Once sticks rest on the table
+    # (elevation ≈ D/2 ≈ 1.5mm) the offset is imperceptible even at 20°.
+    tilt = math.radians(random.uniform(0, 20))
+    azimuth = random.uniform(0, 2 * math.pi)
+    rx = tilt * math.cos(azimuth)
+    ry = tilt * math.sin(azimuth)
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
-    sun.rotation_euler = (0.0, 0.0, 0.0)
+    sun.rotation_euler = (rx, ry, 0.0)
     sun.data.energy = random.uniform(2.0, 4.0)
     sun.data.angle = math.radians(3)   # narrow disc = tight shadow edges
 
@@ -390,10 +396,10 @@ def generate_scene(index):
         for _ in range(n):
             x = random.uniform(-DROP_W / 2, DROP_W / 2)
             y = random.uniform(-DROP_H / 2, DROP_H / 2)
-            z = DROP_HEIGHT + random.uniform(0, DROP_HEIGHT * 0.5)
-            # Random rotation — mostly horizontal with slight tilt
-            rx = random.uniform(-0.2, 0.2)
-            ry = random.uniform(-0.2, 0.2)
+            z = DROP_HEIGHT + random.uniform(0, DROP_HEIGHT * 0.3)
+            # Fully random 3-D orientation — sticks tumble and land at natural angles
+            rx = random.uniform(-math.pi / 2, math.pi / 2)
+            ry = random.uniform(-math.pi / 2, math.pi / 2)
             rz = random.uniform(0, math.pi)
             obj = add_stick(class_name, (x, y, z), (rx, ry, rz))
             stick_objects.append(obj)

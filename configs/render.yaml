@@ -33,6 +33,6 @@ lighting:
 
 # Physics simulation
 physics:
-  drop_height_mm: 80    # height from which sticks are dropped
+  drop_height_mm: 300   # height from which sticks are dropped (must be >> stick half-length=85mm)
   drop_spread_mm: 30    # horizontal spread of drop positions
-  sim_steps: 100        # number of physics steps to simulate (100 = sticks settle fully)
+  sim_steps: 250        # number of physics steps to simulate (250 gives time to fall and settle)
