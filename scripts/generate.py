@@ -166,14 +166,23 @@ def add_stick(class_name, location, rotation_euler):
 
 
 def setup_camera():
-    # In Blender, camera default orientation points along -Y with +Z up.
-    # To look straight down (-Z), rotate X by +90 degrees.
-    bpy.ops.object.camera_add(
-        location=(0, 0, CAM_H),
-        rotation=(math.radians(90), 0, 0),
-    )
+    # Place camera above scene and use a Track To constraint to point it
+    # unambiguously at the table centre. This avoids Euler angle confusion.
+    bpy.ops.object.camera_add(location=(0, 0, CAM_H))
     cam = bpy.context.active_object
     cam.name = "Camera"
+
+    # Add an empty at the table centre as the look-at target
+    bpy.ops.object.empty_add(location=(0, 0, 0))
+    target = bpy.context.active_object
+    target.name = "CameraTarget"
+
+    # Track To constraint: camera -Z toward target, +Y up
+    con = cam.constraints.new(type="TRACK_TO")
+    con.target = target
+    con.track_axis = "TRACK_NEGATIVE_Z"
+    con.up_axis = "UP_Y"
+
     bpy.context.scene.camera = cam
 
     fov = math.radians(RENDER["camera"]["fov_deg"])
