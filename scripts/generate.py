@@ -201,7 +201,19 @@ def setup_render():
     scene.render.resolution_percentage = 100
     if ENGINE == "CYCLES":
         scene.cycles.samples = SAMPLES
-        scene.cycles.use_denoising = True
+        scene.cycles.use_denoising = False  # denoising slow at low sample counts
+        # Enable GPU if available (CUDA for T4)
+        prefs = bpy.context.preferences.addons['cycles'].preferences
+        prefs.compute_device_type = 'CUDA'
+        try:
+            prefs.get_devices()
+            for device in prefs.devices:
+                device.use = True
+            scene.cycles.device = 'GPU'
+            print('Cycles: GPU rendering enabled')
+        except Exception as e:
+            print(f'Cycles: GPU not available, using CPU ({e})')
+            scene.cycles.device = 'CPU'
     scene.frame_start = 1
     scene.frame_end = SIM_STEPS
 

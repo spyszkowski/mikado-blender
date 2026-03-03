@@ -3,8 +3,8 @@
 output:
   width: 1280           # output image width in pixels
   height: 960           # output image height in pixels
-  samples: 32           # Cycles render samples (only used with CYCLES engine)
-  engine: BLENDER_EEVEE # BLENDER_EEVEE (fast, ~2s/image) or CYCLES (slow, ~50min/image)
+  samples: 4            # Cycles render samples — 4 is enough for training data (fast + a bit noisy)
+  engine: CYCLES        # CYCLES works headless; BLENDER_EEVEE requires a display (needs Xvfb)
 
 camera:
   height_mm: 500        # camera height above table in mm
