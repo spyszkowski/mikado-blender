@@ -214,17 +214,16 @@ def setup_camera():
 
 
 def setup_lighting():
-    # Sun lamp nearly straight down — small tilt keeps shadows close to sticks
-    tilt_x = random.uniform(-0.09, 0.09)   # ~±5°
-    tilt_y = random.uniform(-0.09, 0.09)
+    # Sun exactly vertical — shadows fall directly under sticks, no displacement
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
-    sun.rotation_euler = (tilt_x, tilt_y, 0)
+    sun.rotation_euler = (0.0, 0.0, 0.0)
     sun.data.energy = random.uniform(2.0, 4.0)
-    sun.data.angle = math.radians(5)   # soft sun disc (5° = soft shadows)
+    sun.data.angle = math.radians(3)   # narrow disc = tight shadow edges
 
-    # Low-strength world ambient to fill shadows — mimics room bounce light
-    # Keep very low (0.03–0.08) so it fills shadows without overexposing
+    # World ambient: vary warmth slightly per render for diversity
+    warm = random.uniform(0.95, 1.0)
+    cool = random.uniform(0.95, 1.0)
     world = bpy.context.scene.world
     if world is None:
         world = bpy.data.worlds.new("World")
@@ -232,8 +231,8 @@ def setup_lighting():
     world.use_nodes = True
     bg_node = world.node_tree.nodes.get("Background")
     if bg_node:
-        bg_node.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
-        bg_node.inputs["Strength"].default_value = random.uniform(0.03, 0.08)
+        bg_node.inputs["Color"].default_value = (warm, 1.0, cool, 1.0)
+        bg_node.inputs["Strength"].default_value = random.uniform(0.03, 0.06)
 
     return sun
 
