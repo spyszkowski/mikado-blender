@@ -166,15 +166,25 @@ def add_stick(class_name, location, rotation_euler):
 
 
 def setup_camera():
-    bpy.ops.object.camera_add(location=(0, 0, CAM_H))
+    # In Blender, camera default orientation points along -Y with +Z up.
+    # To look straight down (-Z), rotate X by +90 degrees.
+    bpy.ops.object.camera_add(
+        location=(0, 0, CAM_H),
+        rotation=(math.radians(90), 0, 0),
+    )
     cam = bpy.context.active_object
     cam.name = "Camera"
-    cam.rotation_euler = (0, 0, 0)   # looking straight down
     bpy.context.scene.camera = cam
 
     fov = math.radians(RENDER["camera"]["fov_deg"])
     cam.data.lens_unit = "FOV"
     cam.data.angle = fov
+
+    # Print camera coverage at Z=0 for diagnostics
+    import math as _m
+    half_w = CAM_H * _m.tan(fov / 2)
+    print(f'Camera at Z={CAM_H:.3f}m, FOV={RENDER["camera"]["fov_deg"]}°, '
+          f'covers ±{half_w*1000:.0f}mm at table level')
     return cam
 
 
