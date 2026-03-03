@@ -301,8 +301,14 @@ def generate_scene(index):
     # Enable rigid body world
     if scene.rigidbody_world is None:
         bpy.ops.rigidbody.world_add()
-    scene.rigidbody_world.steps_per_second = 120
-    scene.rigidbody_world.solver_iterations = 20
+    rbw = scene.rigidbody_world
+    # Blender 3.x uses substeps_per_frame instead of steps_per_second
+    if hasattr(rbw, 'steps_per_second'):
+        rbw.steps_per_second = 120
+    if hasattr(rbw, 'substeps_per_frame'):
+        rbw.substeps_per_frame = 10
+    if hasattr(rbw, 'solver_iterations'):
+        rbw.solver_iterations = 20
 
     # Table
     table_color = random.choice(RENDER["table"]["color_options"])
