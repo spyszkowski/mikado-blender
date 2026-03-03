@@ -4,7 +4,7 @@ output:
   width: 1280           # output image width in pixels
   height: 960           # output image height in pixels
   samples: 4            # Cycles render samples (only used if engine: CYCLES)
-  engine: BLENDER_WORKBENCH  # WORKBENCH: fast, headless, no GPU needed; CYCLES: slow but photorealistic
+  engine: CYCLES        # CYCLES works headless; BLENDER_WORKBENCH/EEVEE require a display
 
 camera:
   height_mm: 500        # camera height above table in mm
@@ -35,4 +35,4 @@ lighting:
 physics:
   drop_height_mm: 80    # height from which sticks are dropped
   drop_spread_mm: 30    # horizontal spread of drop positions
-  sim_steps: 200        # number of physics steps to simulate
+  sim_steps: 50         # number of physics steps to simulate (50 = sticks settle enough)
