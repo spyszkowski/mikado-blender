@@ -244,10 +244,18 @@ def setup_render():
     scene.render.resolution_x = W_OUT
     scene.render.resolution_y = H_OUT
     scene.render.resolution_percentage = 100
-    if ENGINE == "CYCLES":
+
+    if ENGINE == "BLENDER_WORKBENCH":
+        # Workbench: fast solid renderer, works headless, no GPU needed
+        shading = scene.display.shading
+        shading.light = "STUDIO"          # studio lighting, no shadows needed
+        shading.color_type = "MATERIAL"   # show assigned material colours
+        shading.show_specular_highlight = False
+        print("Workbench: solid renderer, material colours enabled")
+
+    elif ENGINE == "CYCLES":
         scene.cycles.samples = SAMPLES
-        scene.cycles.use_denoising = False  # denoising slow at low sample counts
-        # Enable GPU if available (CUDA for T4)
+        scene.cycles.use_denoising = False
         prefs = bpy.context.preferences.addons['cycles'].preferences
         prefs.compute_device_type = 'CUDA'
         try:
@@ -259,6 +267,7 @@ def setup_render():
         except Exception as e:
             print(f'Cycles: GPU not available, using CPU ({e})')
             scene.cycles.device = 'CPU'
+
     scene.frame_start = 1
     scene.frame_end = SIM_STEPS
 
