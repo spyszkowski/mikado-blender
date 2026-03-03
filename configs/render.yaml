@@ -12,9 +12,11 @@ camera:
   tilt_deg: 0           # 0 = straight down, >0 = slight angle
 
 # Drop zone: sticks are dropped randomly within this rectangle (mm)
+# Keep this well inside camera coverage (±289mm at 500mm height, 60° FOV).
+# Sticks are 170mm long — drop within ±50mm so endpoints stay within ±135mm.
 drop_zone:
-  width_mm: 120
-  height_mm: 120
+  width_mm: 100
+  height_mm: 100
 
 # Table / background
 table:

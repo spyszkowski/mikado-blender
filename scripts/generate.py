@@ -214,18 +214,14 @@ def setup_camera():
 
 
 def setup_lighting():
-    # Sun with a small random tilt (up to ±20°) for natural shadow variation.
-    # Shadow offset = stick_elevation × tan(tilt). Once sticks rest on the table
-    # (elevation ≈ D/2 ≈ 1.5mm) the offset is imperceptible even at 20°.
-    tilt = math.radians(random.uniform(0, 20))
-    azimuth = random.uniform(0, 2 * math.pi)
-    rx = tilt * math.cos(azimuth)
-    ry = tilt * math.sin(azimuth)
+    # Sun straight down — no tilt, shadows fall directly under sticks.
+    # Sticks elevated on a pile can be 5-10mm above table; even 5° tilt
+    # shifts their shadow by ~1mm which is very visible at render scale.
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
-    sun.rotation_euler = (rx, ry, 0.0)
-    sun.data.energy = random.uniform(2.0, 4.0)
-    sun.data.angle = math.radians(3)   # narrow disc = tight shadow edges
+    sun.rotation_euler = (0.0, 0.0, 0.0)
+    sun.data.energy = random.uniform(1.0, 2.0)
+    sun.data.angle = math.radians(10)  # wide disc = soft shadow edges
 
     # World ambient: vary warmth slightly per render for diversity
     warm = random.uniform(0.95, 1.0)
@@ -238,7 +234,7 @@ def setup_lighting():
     bg_node = world.node_tree.nodes.get("Background")
     if bg_node:
         bg_node.inputs["Color"].default_value = (warm, 1.0, cool, 1.0)
-        bg_node.inputs["Strength"].default_value = random.uniform(0.03, 0.06)
+        bg_node.inputs["Strength"].default_value = random.uniform(0.4, 0.6)  # fill light — softens pile shadows
 
     return sun
 
