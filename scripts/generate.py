@@ -122,7 +122,15 @@ def add_stick(class_name, location, rotation_euler):
     stick = bpy.context.active_object
     stick.name = f"stick_{class_name}_{random.randint(0, 99999)}"
 
-    body_mat = make_material(f"body_{stick.name}", BODY_COLOR, roughness=0.4)
+    # Slight per-stick colour variation — real wood sticks vary in tone
+    r, g, b = BODY_COLOR
+    jitter = 0.06
+    wood_color = (
+        max(0, min(1, r + random.uniform(-jitter, jitter))),
+        max(0, min(1, g + random.uniform(-jitter, jitter))),
+        max(0, min(1, b + random.uniform(-jitter, jitter))),
+    )
+    body_mat = make_material(f"body_{stick.name}", wood_color, roughness=random.uniform(0.5, 0.8))
     stick.data.materials.append(body_mat)
 
     tip_color = TIP_COLORS[class_name]
@@ -206,13 +214,18 @@ def setup_camera():
 
 
 def setup_lighting():
-    # Single sun lamp only — no point light, no world ambient.
-    # Sun energy 1.0 is the standard neutral value in Cycles.
+    # Sun lamp with slight random tilt — simulates overhead room light
+    # Small tilt (up to 20°) adds directional shadows without going harsh
+    tilt_x = random.uniform(-0.35, 0.35)   # ~±20°
+    tilt_y = random.uniform(-0.35, 0.35)
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
-    sun.data.energy = 1.0
+    sun.rotation_euler = (tilt_x, tilt_y, 0)
+    sun.data.energy = random.uniform(2.0, 4.0)
+    sun.data.angle = math.radians(5)   # soft sun disc (5° = soft shadows)
 
-    # Black world — no ambient contribution
+    # Low-strength world ambient to fill shadows — mimics room bounce light
+    # Keep very low (0.03–0.08) so it fills shadows without overexposing
     world = bpy.context.scene.world
     if world is None:
         world = bpy.data.worlds.new("World")
@@ -220,8 +233,8 @@ def setup_lighting():
     world.use_nodes = True
     bg_node = world.node_tree.nodes.get("Background")
     if bg_node:
-        bg_node.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
-        bg_node.inputs["Strength"].default_value = 0.0
+        bg_node.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        bg_node.inputs["Strength"].default_value = random.uniform(0.03, 0.08)
 
     return sun
 

@@ -3,7 +3,7 @@
 output:
   width: 1280           # output image width in pixels
   height: 960           # output image height in pixels
-  samples: 4            # Cycles render samples (only used if engine: CYCLES)
+  samples: 16           # Cycles render samples — 16 gives clean shadows on GPU
   engine: CYCLES        # CYCLES works headless; BLENDER_WORKBENCH/EEVEE require a display
 
 camera:
