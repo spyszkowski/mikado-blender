@@ -122,6 +122,12 @@ def add_stick(class_name, location, rotation_euler):
     stick = bpy.context.active_object
     stick.name = f"stick_{class_name}_{random.randint(0, 99999)}"
 
+    # Record the world-space endpoints NOW, before transform_apply resets rotation.
+    # After transform_apply the local Z is no longer the stick axis, so we store
+    # the axis vector on the object for use by the label exporter.
+    rot_mat = stick.rotation_euler.to_matrix()
+    stick["axis"] = list(rot_mat @ Vector((0, 0, 1)))  # world-space unit vector along stick
+
     # Slight per-stick colour variation — real wood sticks vary in tone
     r, g, b = BODY_COLOR
     jitter = 0.06
@@ -297,11 +303,17 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     """
     from bpy_extras.object_utils import world_to_camera_view
 
-    # Get the world-space endpoints of the stick's long axis
-    mat = stick_obj.matrix_world
-    half = Vector((0, 0, L / 2))
-    p1_world = mat @ half
-    p2_world = mat @ (-half)
+    # Get the world-space endpoints of the stick's long axis.
+    # We use the axis stored at spawn time because transform_apply(rotation=True)
+    # bakes the rotation into the mesh, resetting local Z to an arbitrary direction.
+    center = stick_obj.matrix_world.translation
+    axis = stick_obj.get("axis")
+    if axis:
+        half_vec = Vector(axis) * (L / 2)
+    else:
+        half_vec = stick_obj.matrix_world.to_3x3() @ Vector((0, 0, L / 2))
+    p1_world = center + half_vec
+    p2_world = center - half_vec
 
     # Project to camera/image space (0-1, y-up in Blender → flip y for image)
     def proj(p):
