@@ -80,9 +80,14 @@ SIM_STEPS = RENDER["physics"]["sim_steps"]
 # ---------------------------------------------------------------------------
 
 def clear_scene():
-    # Remove rigid body world first — it caches object references that become
-    # stale after deletion, causing sticks to fall through the floor on scene 2+.
+    # Free physics cache before removing the world so Bullet releases its
+    # internal state cleanly — prevents stale references on scene 2+.
     if bpy.context.scene.rigidbody_world is not None:
+        try:
+            pc = bpy.context.scene.rigidbody_world.point_cache
+            bpy.ops.ptcache.free_bake({"point_cache": pc})
+        except Exception:
+            pass
         bpy.ops.rigidbody.world_remove()
 
     bpy.ops.object.select_all(action="SELECT")
@@ -108,7 +113,8 @@ def add_table(color):
     table.name = "Table"
     mat = make_material("TableMat", color, roughness=0.8)
     table.data.materials.append(mat)
-    # Rigid body — passive (static floor)
+    # Apply transforms BEFORE adding rigid body (required — see Blender T81814)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     bpy.ops.rigidbody.object_add()
     table.rigid_body.type = "PASSIVE"
     table.rigid_body.collision_shape = "MESH"
@@ -117,7 +123,7 @@ def add_table(color):
 
 def add_stick(class_name, location, rotation_euler):
     """Create a stick as a cylinder with coloured tip caps."""
-    # Main body
+    # Main body — created vertical (local Z = long axis), then rotated via object
     bpy.ops.mesh.primitive_cylinder_add(
         radius=D / 2,
         depth=L,
@@ -144,13 +150,12 @@ def add_stick(class_name, location, rotation_euler):
     tip_len = L * TIP_FRAC
     for sign in (+1, -1):
         offset = Vector((0, 0, sign * (L / 2 - tip_len / 2)))
-        # Transform offset into world space using stick's rotation
         rot_mat = stick.rotation_euler.to_matrix()
         world_offset = rot_mat @ offset
         tip_loc = Vector(location) + world_offset
 
         bpy.ops.mesh.primitive_cylinder_add(
-            radius=D / 2 + 0.0001,   # tiny overlap to avoid z-fighting
+            radius=D / 2 + 0.0001,
             depth=tip_len,
             location=tip_loc,
             rotation=rotation_euler,
@@ -160,40 +165,40 @@ def add_stick(class_name, location, rotation_euler):
         tip_mat = make_material(f"tipmat_{tip.name}", tip_color, roughness=0.3)
         tip.data.materials.append(tip_mat)
 
-        # Join tip to stick
         tip.select_set(True)
         stick.select_set(True)
         bpy.context.view_layer.objects.active = stick
         bpy.ops.object.join()
 
+    # Apply transforms BEFORE adding rigid body.
+    # This bakes rotation into mesh vertices so CONVEX_HULL is computed
+    # from the actual oriented geometry. Must happen before rigidbody.object_add().
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
     # Rigid body — active (falls under gravity).
-    # CONVEX_HULL is computed from world-space vertices (respects object rotation)
-    # so it wraps the stick correctly without needing transform_apply.
-    # CAPSULE/CYLINDER use local axes and hover when the stick is rotated.
+    # CONVEX_HULL respects the object's full matrix — correct for any orientation.
     bpy.ops.rigidbody.object_add()
     stick.rigid_body.type = "ACTIVE"
     stick.rigid_body.collision_shape = "CONVEX_HULL"
-    stick.rigid_body.mass = 0.005   # 5g per stick
+    stick.rigid_body.mass = 0.005
     stick.rigid_body.restitution = 0.1
     stick.rigid_body.friction = 0.9
+    stick.rigid_body.angular_damping = 0.4
+    stick.rigid_body.linear_damping = 0.4
 
     stick["class_name"] = class_name
     return stick
 
 
 def setup_camera():
-    # Place camera above scene and use a Track To constraint to point it
-    # unambiguously at the table centre. This avoids Euler angle confusion.
     bpy.ops.object.camera_add(location=(0, 0, CAM_H))
     cam = bpy.context.active_object
     cam.name = "Camera"
 
-    # Add an empty at the table centre as the look-at target
     bpy.ops.object.empty_add(location=(0, 0, 0))
     target = bpy.context.active_object
     target.name = "CameraTarget"
 
-    # Track To constraint: camera -Z toward target, +Y up
     con = cam.constraints.new(type="TRACK_TO")
     con.target = target
     con.track_axis = "TRACK_NEGATIVE_Z"
@@ -205,33 +210,20 @@ def setup_camera():
     cam.data.lens_unit = "FOV"
     cam.data.angle = fov
 
-    # Print camera coverage at Z=0 for diagnostics
-    import math as _m
-    half_w = CAM_H * _m.tan(fov / 2)
+    half_w = CAM_H * math.tan(fov / 2)
     print(f'Camera at Z={CAM_H:.3f}m, FOV={RENDER["camera"]["fov_deg"]}°, '
           f'covers ±{half_w*1000:.0f}mm at table level')
-
-    # Diagnostic: print where camera is looking
-    bpy.context.view_layer.update()
-    cam_mat = cam.matrix_world
-    forward = cam_mat.col[2]   # camera -Z in world space = col[2] negated
-    print(f'Camera world pos: {tuple(round(v,3) for v in cam_mat.translation)}')
-    print(f'Camera -Z (look direction): {tuple(round(-v,3) for v in forward[:3])}')
 
     return cam
 
 
 def setup_lighting():
-    # Sun straight down — no tilt, shadows fall directly under sticks.
-    # Sticks elevated on a pile can be 5-10mm above table; even 5° tilt
-    # shifts their shadow by ~1mm which is very visible at render scale.
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
     sun.rotation_euler = (0.0, 0.0, 0.0)
     sun.data.energy = random.uniform(1.0, 2.0)
-    sun.data.angle = math.radians(10)  # wide disc = soft shadow edges
+    sun.data.angle = math.radians(10)
 
-    # World ambient: vary warmth slightly per render for diversity
     warm = random.uniform(0.95, 1.0)
     cool = random.uniform(0.95, 1.0)
     world = bpy.context.scene.world
@@ -242,7 +234,7 @@ def setup_lighting():
     bg_node = world.node_tree.nodes.get("Background")
     if bg_node:
         bg_node.inputs["Color"].default_value = (warm, 1.0, cool, 1.0)
-        bg_node.inputs["Strength"].default_value = random.uniform(0.4, 0.6)  # fill light — softens pile shadows
+        bg_node.inputs["Strength"].default_value = random.uniform(0.4, 0.6)
 
     return sun
 
@@ -255,10 +247,9 @@ def setup_render():
     scene.render.resolution_percentage = 100
 
     if ENGINE == "BLENDER_WORKBENCH":
-        # Workbench: fast solid renderer, works headless, no GPU needed
         shading = scene.display.shading
-        shading.light = "STUDIO"          # studio lighting, no shadows needed
-        shading.color_type = "MATERIAL"   # show assigned material colours
+        shading.light = "STUDIO"
+        shading.color_type = "MATERIAL"
         shading.show_specular_highlight = False
         print("Workbench: solid renderer, material colours enabled")
 
@@ -281,12 +272,25 @@ def setup_render():
     scene.frame_end = SIM_STEPS
 
 
-def run_physics():
-    """Advance simulation to let sticks settle."""
+def run_physics(stick_objects):
+    """Advance simulation frame-by-frame to populate the physics cache,
+    then freeze each stick's final pose so rendering reads the settled position."""
     scene = bpy.context.scene
     scene.frame_set(1)
     for frame in range(1, SIM_STEPS + 1):
         scene.frame_set(frame)
+
+    # Freeze poses: read matrix_world (updated by physics) and apply as static
+    # location/rotation so the render is not affected by any cache drift.
+    # obj.location is NOT updated during simulation — only matrix_world is.
+    scene.frame_set(SIM_STEPS)
+    bpy.context.view_layer.update()
+    for obj in stick_objects:
+        mat = obj.matrix_world.copy()
+        obj.rigid_body.type = "PASSIVE"   # stop physics overriding the pose
+        obj.location = mat.translation
+        obj.rotation_euler = mat.to_euler()
+        obj.matrix_world = mat
 
 
 # ---------------------------------------------------------------------------
@@ -300,37 +304,30 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     """
     from bpy_extras.object_utils import world_to_camera_view
 
-    # Get the world-space endpoints of the stick's long axis.
-    # After transform_apply(rotation=True) the mesh long axis is local Z, and
-    # physics updates matrix_world — so col[2] gives the current world-space axis.
+    # After transform_apply the mesh long axis is local Z.
+    # matrix_world is kept current by physics (and frozen above).
     mat = stick_obj.matrix_world
     half_vec = mat.to_3x3() @ Vector((0, 0, L / 2))
     center = mat.translation
     p1_world = center + half_vec
     p2_world = center - half_vec
 
-    # Project to camera/image space (0-1, y-up in Blender → flip y for image)
     def proj(p):
         v = world_to_camera_view(scene, cam_obj, p)
-        return (v.x, 1.0 - v.y)   # flip y: Blender y=0 is bottom, image y=0 is top
+        return (v.x, 1.0 - v.y)
 
     p1 = proj(p1_world)
     p2 = proj(p2_world)
 
-    # Build OBB corners from the line + thickness
     dx = p2[0] - p1[0]
     dy = p2[1] - p1[1]
     length = math.sqrt(dx * dx + dy * dy)
     if length < 1e-6:
         return None
 
-    # Half-thickness in normalised image coordinates
-    # D (metres) projected: approximate using stick length ratio
     stick_len_img = length
-    stick_len_real = L
-    half_t = (D / stick_len_real) * stick_len_img / 2.0
+    half_t = (D / L) * stick_len_img / 2.0
 
-    # Perpendicular unit vector
     px = -dy / length * half_t
     py = dx / length * half_t
 
@@ -341,13 +338,11 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
         (p2[0] - px, p2[1] - py),
     ]
 
-    # Check at least partially in frame
     xs = [c[0] for c in corners]
     ys = [c[1] for c in corners]
     if max(xs) < 0 or min(xs) > 1 or max(ys) < 0 or min(ys) > 1:
         return None
 
-    # Clamp to [0, 1]
     corners = [(max(0.0, min(1.0, x)), max(0.0, min(1.0, y))) for x, y in corners]
     return corners
 
@@ -376,17 +371,12 @@ def write_label(label_path, stick_objects, cam_obj, scene):
 def generate_scene(index):
     scene = bpy.context.scene
 
-    # Enable rigid body world
-    if scene.rigidbody_world is None:
-        bpy.ops.rigidbody.world_add()
+    # Rigid body world — created fresh each scene (world_remove in clear_scene)
+    bpy.ops.rigidbody.world_add()
     rbw = scene.rigidbody_world
-    # Blender 3.x uses substeps_per_frame instead of steps_per_second
-    if hasattr(rbw, 'steps_per_second'):
-        rbw.steps_per_second = 240   # higher rate = less clipping for thin sticks
-    if hasattr(rbw, 'substeps_per_frame'):
-        rbw.substeps_per_frame = 20
-    if hasattr(rbw, 'solver_iterations'):
-        rbw.solver_iterations = 40
+    rbw.enabled = True
+    rbw.substeps_per_frame = 20   # more substeps = less tunneling for thin sticks
+    rbw.solver_iterations = 40
 
     # Table
     table_color = random.choice(RENDER["table"]["color_options"])
@@ -396,10 +386,7 @@ def generate_scene(index):
     cam = setup_camera()
     setup_lighting()
 
-    # Determine how many sticks of each type to place.
-    # Stagger drop heights so sticks land sequentially and pile on top of each other,
-    # creating natural angled stacking rather than all settling flat simultaneously.
-    stick_objects = []
+    # Build stick list — shuffle so colours are distributed randomly in the pile
     all_sticks = []
     for class_name, max_count in COUNTS.items():
         n = random.randint(max(1, max_count // 2), max_count)
@@ -407,23 +394,23 @@ def generate_scene(index):
             all_sticks.append(class_name)
     random.shuffle(all_sticks)
 
+    stick_objects = []
     for i, class_name in enumerate(all_sticks):
         x = random.uniform(-DROP_W / 2, DROP_W / 2)
         y = random.uniform(-DROP_H / 2, DROP_H / 2)
-        # Stagger: first sticks drop from DROP_HEIGHT, last from 2×DROP_HEIGHT
+        # Stagger heights: first stick at DROP_HEIGHT, last at 2×DROP_HEIGHT.
+        # Sequential landing forces sticks to rest on the growing pile.
         z = DROP_HEIGHT + (i / max(len(all_sticks) - 1, 1)) * DROP_HEIGHT
-        # Random horizontal orientation (sticks lie flat when dropped, like real mikado)
-        rx = random.uniform(-0.3, 0.3)   # slight tilt off horizontal
+        # Near-horizontal spawn (±17°) matching a real mikado throw; rz is
+        # the in-plane compass direction — fully random.
+        rx = random.uniform(-0.3, 0.3)
         ry = random.uniform(-0.3, 0.3)
-        rz = random.uniform(0, math.pi)  # random compass direction
+        rz = random.uniform(0, math.pi)
         obj = add_stick(class_name, (x, y, z), (rx, ry, rz))
-        obj.rigid_body.angular_damping = 0.4
-        obj.rigid_body.linear_damping = 0.4
         stick_objects.append(obj)
 
-    # Run physics
-    run_physics()
-    scene.frame_set(SIM_STEPS)
+    # Run physics and freeze final poses
+    run_physics(stick_objects)
 
     # Render
     img_name = f"synthetic_{index:05d}.png"
