@@ -382,11 +382,11 @@ def generate_scene(index):
     rbw = scene.rigidbody_world
     # Blender 3.x uses substeps_per_frame instead of steps_per_second
     if hasattr(rbw, 'steps_per_second'):
-        rbw.steps_per_second = 120
+        rbw.steps_per_second = 240   # higher rate = less clipping for thin sticks
     if hasattr(rbw, 'substeps_per_frame'):
-        rbw.substeps_per_frame = 10
+        rbw.substeps_per_frame = 20
     if hasattr(rbw, 'solver_iterations'):
-        rbw.solver_iterations = 20
+        rbw.solver_iterations = 40
 
     # Table
     table_color = random.choice(RENDER["table"]["color_options"])
@@ -396,23 +396,30 @@ def generate_scene(index):
     cam = setup_camera()
     setup_lighting()
 
-    # Determine how many sticks of each type to place
+    # Determine how many sticks of each type to place.
+    # Stagger drop heights so sticks land sequentially and pile on top of each other,
+    # creating natural angled stacking rather than all settling flat simultaneously.
     stick_objects = []
+    all_sticks = []
     for class_name, max_count in COUNTS.items():
         n = random.randint(max(1, max_count // 2), max_count)
         for _ in range(n):
-            x = random.uniform(-DROP_W / 2, DROP_W / 2)
-            y = random.uniform(-DROP_H / 2, DROP_H / 2)
-            z = DROP_HEIGHT + random.uniform(0, DROP_HEIGHT * 0.3)
-            # Fully random 3-D orientation — sticks tumble and land at natural angles
-            rx = random.uniform(-math.pi / 2, math.pi / 2)
-            ry = random.uniform(-math.pi / 2, math.pi / 2)
-            rz = random.uniform(0, math.pi)
-            obj = add_stick(class_name, (x, y, z), (rx, ry, rz))
-            # Give each stick a random spin so they tumble and land at varied angles
-            obj.rigid_body.angular_damping = 0.2   # low damping = more tumbling
-            obj.rigid_body.linear_damping = 0.2
-            stick_objects.append(obj)
+            all_sticks.append(class_name)
+    random.shuffle(all_sticks)
+
+    for i, class_name in enumerate(all_sticks):
+        x = random.uniform(-DROP_W / 2, DROP_W / 2)
+        y = random.uniform(-DROP_H / 2, DROP_H / 2)
+        # Stagger: first sticks drop from DROP_HEIGHT, last from 2×DROP_HEIGHT
+        z = DROP_HEIGHT + (i / max(len(all_sticks) - 1, 1)) * DROP_HEIGHT
+        # Random horizontal orientation (sticks lie flat when dropped, like real mikado)
+        rx = random.uniform(-0.3, 0.3)   # slight tilt off horizontal
+        ry = random.uniform(-0.3, 0.3)
+        rz = random.uniform(0, math.pi)  # random compass direction
+        obj = add_stick(class_name, (x, y, z), (rx, ry, rz))
+        obj.rigid_body.angular_damping = 0.4
+        obj.rigid_body.linear_damping = 0.4
+        stick_objects.append(obj)
 
     # Run physics
     run_physics()
