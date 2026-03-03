@@ -200,6 +200,18 @@ def setup_lighting():
     bpy.ops.object.light_add(type="POINT", location=loc)
     light = bpy.context.active_object
     light.data.energy = energy
+
+    # Add ambient world light so Cycles doesn't render pure black
+    world = bpy.context.scene.world
+    if world is None:
+        world = bpy.data.worlds.new("World")
+        bpy.context.scene.world = world
+    world.use_nodes = True
+    bg_node = world.node_tree.nodes.get("Background")
+    if bg_node:
+        bg_node.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        bg_node.inputs["Strength"].default_value = 0.5  # soft fill light
+
     return light
 
 
