@@ -1,0 +1,14 @@
+# Output
+output/
+*.png
+*.jpg
+*.blend
+*.blend1
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Colab checkpoints
+.ipynb_checkpoints/

@@ -1,0 +1,38 @@
+# Rendering configuration
+
+output:
+  width: 1280           # output image width in pixels
+  height: 960           # output image height in pixels
+  samples: 32           # Cycles render samples (higher = less noise, slower)
+  engine: CYCLES        # CYCLES or BLENDER_EEVEE
+
+camera:
+  height_mm: 500        # camera height above table in mm
+  fov_deg: 60           # field of view in degrees
+  tilt_deg: 0           # 0 = straight down, >0 = slight angle
+
+# Drop zone: sticks are dropped randomly within this rectangle (mm)
+drop_zone:
+  width_mm: 250
+  height_mm: 180
+
+# Table / background
+table:
+  color_options:        # randomly pick one per render
+    - [0.1, 0.5, 0.4]  # green cloth (like real setup)
+    - [0.2, 0.2, 0.6]  # blue cloth
+    - [0.5, 0.5, 0.5]  # grey
+    - [0.8, 0.7, 0.5]  # beige / wood
+  roughness: 0.8
+
+# Lighting: random point light above scene
+lighting:
+  min_energy: 800
+  max_energy: 2000
+  jitter_mm: 100        # random offset from centre
+
+# Physics simulation
+physics:
+  drop_height_mm: 80    # height from which sticks are dropped
+  drop_spread_mm: 30    # horizontal spread of drop positions
+  sim_steps: 200        # number of physics steps to simulate
