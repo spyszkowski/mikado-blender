@@ -206,25 +206,13 @@ def setup_camera():
 
 
 def setup_lighting():
-    cfg = RENDER["lighting"]
-    energy = random.uniform(cfg["min_energy"], cfg["max_energy"])
-    jitter = cfg["jitter_mm"] / 1000.0
-    loc = (
-        random.uniform(-jitter, jitter),
-        random.uniform(-jitter, jitter),
-        CAM_H * 0.8,
-    )
-    bpy.ops.object.light_add(type="POINT", location=loc)
-    light = bpy.context.active_object
-    light.data.energy = energy
-
-    # Add a sun lamp pointing straight down — reliable for top-down scenes
+    # Single sun lamp only — no point light, no world ambient.
+    # Sun energy 1.0 is the standard neutral value in Cycles.
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
-    sun.rotation_euler = (0, 0, 0)   # default sun points down in Blender
-    sun.data.energy = 3.0
+    sun.data.energy = 1.0
 
-    # World background: neutral grey (not white, not black)
+    # Black world — no ambient contribution
     world = bpy.context.scene.world
     if world is None:
         world = bpy.data.worlds.new("World")
@@ -232,10 +220,10 @@ def setup_lighting():
     world.use_nodes = True
     bg_node = world.node_tree.nodes.get("Background")
     if bg_node:
-        bg_node.inputs["Color"].default_value = (0.1, 0.1, 0.1, 1.0)
-        bg_node.inputs["Strength"].default_value = 1.0
+        bg_node.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+        bg_node.inputs["Strength"].default_value = 0.0
 
-    return light
+    return sun
 
 
 def setup_render():
