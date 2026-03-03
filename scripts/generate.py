@@ -214,10 +214,9 @@ def setup_camera():
 
 
 def setup_lighting():
-    # Sun lamp with slight random tilt — simulates overhead room light
-    # Small tilt (up to 20°) adds directional shadows without going harsh
-    tilt_x = random.uniform(-0.35, 0.35)   # ~±20°
-    tilt_y = random.uniform(-0.35, 0.35)
+    # Sun lamp nearly straight down — small tilt keeps shadows close to sticks
+    tilt_x = random.uniform(-0.09, 0.09)   # ~±5°
+    tilt_y = random.uniform(-0.09, 0.09)
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
     sun.rotation_euler = (tilt_x, tilt_y, 0)

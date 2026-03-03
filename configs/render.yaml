@@ -13,8 +13,8 @@ camera:
 
 # Drop zone: sticks are dropped randomly within this rectangle (mm)
 drop_zone:
-  width_mm: 250
-  height_mm: 180
+  width_mm: 120
+  height_mm: 120
 
 # Table / background
 table:
