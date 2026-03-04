@@ -545,22 +545,11 @@ def setup_camera():
 
 
 def setup_lighting():
-    # Main area light — slightly off-center for directional shadows with penumbra
-    jitter = 0.1
-    main_x = random.uniform(-jitter, jitter)
-    main_y = random.uniform(-jitter, jitter)
-    bpy.ops.object.light_add(type="AREA", location=(main_x, main_y, CAM_H))
-    main_light = bpy.context.active_object
-    main_light.name = "MainLight"
-    main_light.data.size = random.uniform(0.25, 0.35)
-    main_light.data.energy = random.uniform(50.0, 150.0)
-
-    # Fill light — opposite side, softer, to prevent pure-black shadows
-    bpy.ops.object.light_add(type="AREA", location=(-main_x * 2, -main_y * 2, CAM_H * 0.8))
-    fill_light = bpy.context.active_object
-    fill_light.name = "FillLight"
-    fill_light.data.size = random.uniform(0.4, 0.6)
-    fill_light.data.energy = random.uniform(20.0, 50.0)
+    bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
+    sun = bpy.context.active_object
+    sun.rotation_euler = (0.0, 0.0, 0.0)
+    sun.data.energy = random.uniform(1.0, 2.0)
+    sun.data.angle = math.radians(10)
 
     warm = random.uniform(0.95, 1.0)
     cool = random.uniform(0.95, 1.0)
@@ -574,7 +563,7 @@ def setup_lighting():
         bg_node.inputs["Color"].default_value = (warm, 1.0, cool, 1.0)
         bg_node.inputs["Strength"].default_value = random.uniform(0.4, 0.6)
 
-    return main_light
+    return sun
 
 
 def setup_render():
