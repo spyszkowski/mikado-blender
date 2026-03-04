@@ -184,10 +184,10 @@ def add_stick(class_name, location, rotation_euler):
     obj.rigid_body.type = "ACTIVE"
     obj.rigid_body.collision_shape = "CONVEX_HULL"
     obj.rigid_body.mass = 0.005
-    obj.rigid_body.restitution = 0.4
-    obj.rigid_body.friction = 0.4
-    obj.rigid_body.angular_damping = 0.1
-    obj.rigid_body.linear_damping = 0.1
+    obj.rigid_body.restitution = 0.2
+    obj.rigid_body.friction = 0.6
+    obj.rigid_body.angular_damping = 0.6   # damp rotation so sticks settle quickly
+    obj.rigid_body.linear_damping = 0.6    # damp translation so sticks stop sliding
 
     obj["class_name"] = class_name
     return obj
@@ -276,24 +276,37 @@ def setup_render():
 
 
 def run_physics(stick_objects):
-    """Advance simulation frame-by-frame to populate the physics cache,
-    then freeze each stick's final pose so rendering reads the settled position."""
+    """Advance simulation frame-by-frame, then bake final poses as keyframes.
+
+    Keyframing the final pose at SIM_STEPS+1 (one frame past the sim end)
+    overrides the physics cache completely for rendering — no cache drift,
+    no ghost poses. This is the BlenderProc-validated approach.
+    """
     scene = bpy.context.scene
     scene.frame_set(1)
     for frame in range(1, SIM_STEPS + 1):
         scene.frame_set(frame)
 
-    # Freeze poses: read matrix_world (updated by physics) and apply as static
-    # location/rotation so the render is not affected by any cache drift.
-    # obj.location is NOT updated during simulation — only matrix_world is.
+    # Read settled poses from matrix_world (the only property physics updates)
     scene.frame_set(SIM_STEPS)
     bpy.context.view_layer.update()
+
+    final_poses = {}
     for obj in stick_objects:
-        mat = obj.matrix_world.copy()
-        obj.rigid_body.type = "PASSIVE"   # stop physics overriding the pose
+        final_poses[obj.name] = obj.matrix_world.copy()
+
+    # Bake: disable physics and keyframe the final pose at render frame
+    render_frame = SIM_STEPS + 1
+    scene.frame_set(render_frame)
+    for obj in stick_objects:
+        mat = final_poses[obj.name]
+        obj.rigid_body.type = "PASSIVE"
         obj.location = mat.translation
         obj.rotation_euler = mat.to_euler()
-        obj.matrix_world = mat
+        obj.keyframe_insert(data_path="location", frame=render_frame)
+        obj.keyframe_insert(data_path="rotation_euler", frame=render_frame)
+
+    scene.frame_end = render_frame
 
 
 # ---------------------------------------------------------------------------
