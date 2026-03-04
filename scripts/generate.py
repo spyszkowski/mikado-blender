@@ -37,6 +37,8 @@ parser.add_argument("--count", type=int, default=50, help="Number of images to g
 parser.add_argument("--output", default="output", help="Output directory")
 parser.add_argument("--config", default="configs", help="Config directory")
 parser.add_argument("--seed", type=int, default=0, help="Random seed (0 = random)")
+parser.add_argument("--stick-style", choices=["simple", "realistic"], default="simple",
+                    help="Stick material style: simple (flat color) or realistic (wood grain + ring tips)")
 args = parser.parse_args(script_args)
 
 random.seed(args.seed if args.seed != 0 else None)
@@ -211,6 +213,228 @@ def add_table(color):
     return table
 
 
+def make_wood_material(name, base_color, roughness=0.5):
+    """Procedural bamboo/wood material with longitudinal grain and specular highlights."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    tree = mat.node_tree
+    nodes = tree.nodes
+    links = tree.links
+
+    for n in nodes:
+        nodes.remove(n)
+
+    output = nodes.new("ShaderNodeOutputMaterial")
+    output.location = (600, 0)
+
+    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.location = (300, 0)
+    bsdf.inputs["Roughness"].default_value = roughness
+    bsdf.inputs["Specular IOR Level"].default_value = 0.6
+    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+
+    tex_coord = nodes.new("ShaderNodeTexCoord")
+    tex_coord.location = (-900, 0)
+
+    # Wave texture — longitudinal grain along X (stick long axis)
+    wave = nodes.new("ShaderNodeTexWave")
+    wave.location = (-500, 200)
+    wave.wave_type = "BANDS"
+    wave.bands_direction = "X"
+    wave.inputs["Scale"].default_value = random.uniform(40.0, 80.0)
+    wave.inputs["Distortion"].default_value = random.uniform(2.0, 4.0)
+    wave.inputs["Detail"].default_value = 4.0
+    wave.inputs["Detail Scale"].default_value = 2.0
+    links.new(tex_coord.outputs["Object"], wave.inputs["Vector"])
+
+    # Fine noise for grain micro-variation
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.location = (-500, -50)
+    noise.inputs["Scale"].default_value = random.uniform(150.0, 300.0)
+    noise.inputs["Detail"].default_value = 6.0
+    noise.inputs["Roughness"].default_value = 0.7
+    links.new(tex_coord.outputs["Object"], noise.inputs["Vector"])
+
+    # Mix wave + noise
+    mix_grain = nodes.new("ShaderNodeMixRGB")
+    mix_grain.location = (-250, 100)
+    mix_grain.inputs["Fac"].default_value = 0.3
+    links.new(wave.outputs["Fac"], mix_grain.inputs["Color1"])
+    links.new(noise.outputs["Fac"], mix_grain.inputs["Color2"])
+
+    # Color ramp: base wood color → slightly darker grain lines
+    color_ramp = nodes.new("ShaderNodeValToRGB")
+    color_ramp.location = (-50, 100)
+    r, g, b = base_color
+    darken = 0.82
+    lighten = 1.08
+    color_ramp.color_ramp.elements[0].position = 0.3
+    color_ramp.color_ramp.elements[0].color = (
+        min(1, r * lighten), min(1, g * lighten), min(1, b * lighten), 1.0)
+    color_ramp.color_ramp.elements[1].position = 0.7
+    color_ramp.color_ramp.elements[1].color = (r * darken, g * darken, b * darken, 1.0)
+    links.new(mix_grain.outputs["Color"], color_ramp.inputs["Fac"])
+    links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
+
+    # Bump from grain
+    bump = nodes.new("ShaderNodeBump")
+    bump.location = (100, -150)
+    bump.inputs["Strength"].default_value = random.uniform(0.01, 0.03)
+    bump.inputs["Distance"].default_value = 0.05
+    links.new(mix_grain.outputs["Color"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+
+    return mat
+
+
+def make_tip_material_realistic(name, tip_color, roughness=0.3):
+    """Painted tip material with ring-stripe bands and slight imperfections."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    tree = mat.node_tree
+    nodes = tree.nodes
+    links = tree.links
+
+    for n in nodes:
+        nodes.remove(n)
+
+    output = nodes.new("ShaderNodeOutputMaterial")
+    output.location = (600, 0)
+
+    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.location = (300, 0)
+    bsdf.inputs["Roughness"].default_value = roughness
+    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+
+    tex_coord = nodes.new("ShaderNodeTexCoord")
+    tex_coord.location = (-900, 0)
+
+    # Wave texture — ring stripes around the stick (bands along X)
+    wave = nodes.new("ShaderNodeTexWave")
+    wave.location = (-500, 200)
+    wave.wave_type = "BANDS"
+    wave.bands_direction = "X"
+    wave.inputs["Scale"].default_value = random.uniform(300.0, 500.0)
+    wave.inputs["Distortion"].default_value = random.uniform(0.5, 1.5)
+    wave.inputs["Detail"].default_value = 2.0
+    links.new(tex_coord.outputs["Object"], wave.inputs["Vector"])
+
+    # Noise for paint imperfections
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.location = (-500, -50)
+    noise.inputs["Scale"].default_value = random.uniform(150.0, 250.0)
+    noise.inputs["Detail"].default_value = 4.0
+    noise.inputs["Roughness"].default_value = 0.5
+    links.new(tex_coord.outputs["Object"], noise.inputs["Vector"])
+
+    # Color ramp: tip color → slightly shifted variant for ring lines
+    r, g, b = tip_color
+    darken = 0.75
+    lighten = 1.15
+
+    color_ramp = nodes.new("ShaderNodeValToRGB")
+    color_ramp.location = (-50, 200)
+    color_ramp.color_ramp.elements[0].position = 0.35
+    color_ramp.color_ramp.elements[0].color = (
+        min(1, r * lighten), min(1, g * lighten), min(1, b * lighten), 1.0)
+    color_ramp.color_ramp.elements[1].position = 0.65
+    color_ramp.color_ramp.elements[1].color = (r * darken, g * darken, b * darken, 1.0)
+
+    # Mix wave + noise to drive color ramp
+    mix_paint = nodes.new("ShaderNodeMixRGB")
+    mix_paint.location = (-250, 100)
+    mix_paint.inputs["Fac"].default_value = 0.15  # mostly wave stripes, slight noise
+    links.new(wave.outputs["Fac"], mix_paint.inputs["Color1"])
+    links.new(noise.outputs["Fac"], mix_paint.inputs["Color2"])
+    links.new(mix_paint.outputs["Color"], color_ramp.inputs["Fac"])
+    links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
+
+    # Subtle bump from wave for paint texture
+    bump = nodes.new("ShaderNodeBump")
+    bump.location = (100, -150)
+    bump.inputs["Strength"].default_value = 0.005
+    bump.inputs["Distance"].default_value = 0.02
+    links.new(wave.outputs["Fac"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+
+    return mat
+
+
+def add_stick_realistic(class_name, location, rotation_euler):
+    """Create a stick with wood grain body and ring-stripe tips.
+
+    Same geometry and physics as add_stick(), but with procedural materials
+    that simulate real bamboo/wood texture and painted tip bands.
+    """
+    tip_len = L * TIP_FRAC
+    segs = 12  # higher segment count for smoother specular highlights
+
+    mesh = bpy.data.meshes.new(f"stick_mesh_{class_name}")
+    obj = bpy.data.objects.new(f"stick_{class_name}_{random.randint(0,99999)}", mesh)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+
+    bm = bmesh.new()
+
+    # Body — cylinder along local X
+    bmesh.ops.create_cone(bm,
+        cap_ends=True, cap_tris=False, segments=segs,
+        radius1=D / 2, radius2=D / 2, depth=L,
+        matrix=Matrix.Rotation(math.pi / 2, 4, 'Y'),
+    )
+    for f in bm.faces:
+        f.material_index = 0
+
+    # Tip caps at each end along X
+    for sign in (+1, -1):
+        tip_matrix = (Matrix.Translation((sign * (L / 2 - tip_len / 2), 0, 0))
+                      @ Matrix.Rotation(math.pi / 2, 4, 'Y'))
+        bmesh.ops.create_cone(bm,
+            cap_ends=True, cap_tris=False, segments=segs,
+            radius1=D / 2 + 0.0001, radius2=D / 2 + 0.0001, depth=tip_len,
+            matrix=tip_matrix,
+        )
+
+    # Assign tip material to faces whose centroid is near the ends
+    for f in bm.faces:
+        cx = sum(v.co.x for v in f.verts) / len(f.verts)
+        f.material_index = 1 if abs(cx) > (L / 2 - tip_len - 0.001) else 0
+
+    bm.to_mesh(mesh)
+    bm.free()
+
+    # Wood grain body material with per-stick color jitter
+    r, g, b = BODY_COLOR
+    jitter = 0.06
+    wood_color = (
+        max(0, min(1, r + random.uniform(-jitter, jitter))),
+        max(0, min(1, g + random.uniform(-jitter, jitter))),
+        max(0, min(1, b + random.uniform(-jitter, jitter))),
+    )
+    obj.data.materials.append(make_wood_material(
+        f"body_{obj.name}", wood_color, roughness=random.uniform(0.4, 0.6)))
+    obj.data.materials.append(make_tip_material_realistic(
+        f"tip_{obj.name}", TIP_COLORS[class_name], roughness=random.uniform(0.25, 0.4)))
+
+    obj.location = location
+    obj.rotation_euler = rotation_euler
+
+    bpy.ops.rigidbody.object_add()
+    obj.rigid_body.type = "ACTIVE"
+    obj.rigid_body.collision_shape = "CONVEX_HULL"
+    obj.rigid_body.use_margin = True
+    obj.rigid_body.collision_margin = 0.001
+    obj.rigid_body.mass = 0.005
+    obj.rigid_body.restitution = 0.2
+    obj.rigid_body.friction = 0.6
+    obj.rigid_body.angular_damping = 0.6
+    obj.rigid_body.linear_damping = 0.6
+
+    obj["class_name"] = class_name
+    return obj
+
+
 def add_stick(class_name, location, rotation_euler):
     """Create a stick with coloured tips, built horizontally in local space via bmesh.
 
@@ -314,11 +538,22 @@ def setup_camera():
 
 
 def setup_lighting():
-    bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
-    sun = bpy.context.active_object
-    sun.rotation_euler = (0.0, 0.0, 0.0)
-    sun.data.energy = random.uniform(1.0, 2.0)
-    sun.data.angle = math.radians(10)
+    # Main area light — slightly off-center for directional shadows with penumbra
+    jitter = 0.1
+    main_x = random.uniform(-jitter, jitter)
+    main_y = random.uniform(-jitter, jitter)
+    bpy.ops.object.light_add(type="AREA", location=(main_x, main_y, CAM_H))
+    main_light = bpy.context.active_object
+    main_light.name = "MainLight"
+    main_light.data.size = random.uniform(0.25, 0.35)
+    main_light.data.energy = random.uniform(50.0, 150.0)
+
+    # Fill light — opposite side, softer, to prevent pure-black shadows
+    bpy.ops.object.light_add(type="AREA", location=(-main_x * 2, -main_y * 2, CAM_H * 0.8))
+    fill_light = bpy.context.active_object
+    fill_light.name = "FillLight"
+    fill_light.data.size = random.uniform(0.4, 0.6)
+    fill_light.data.energy = random.uniform(20.0, 50.0)
 
     warm = random.uniform(0.95, 1.0)
     cool = random.uniform(0.95, 1.0)
@@ -332,7 +567,7 @@ def setup_lighting():
         bg_node.inputs["Color"].default_value = (warm, 1.0, cool, 1.0)
         bg_node.inputs["Strength"].default_value = random.uniform(0.4, 0.6)
 
-    return sun
+    return main_light
 
 
 def setup_render():
@@ -350,7 +585,8 @@ def setup_render():
         print("Workbench: solid renderer, material colours enabled")
 
     elif ENGINE == "CYCLES":
-        scene.cycles.samples = SAMPLES
+        samples = 64 if args.stick_style == "realistic" else SAMPLES
+        scene.cycles.samples = samples
         scene.cycles.use_denoising = False
         prefs = bpy.context.preferences.addons['cycles'].preferences
         prefs.compute_device_type = 'CUDA'
@@ -515,7 +751,10 @@ def generate_scene(index):
         rx = random.uniform(-0.3, 0.3)
         ry = random.uniform(-0.3, 0.3)
         rz = random.uniform(0, math.pi)
-        obj = add_stick(class_name, (x, y, z), (rx, ry, rz))
+        if args.stick_style == "realistic":
+            obj = add_stick_realistic(class_name, (x, y, z), (rx, ry, rz))
+        else:
+            obj = add_stick(class_name, (x, y, z), (rx, ry, rz))
         stick_objects.append(obj)
 
     # Run physics and freeze final poses
