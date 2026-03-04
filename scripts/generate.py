@@ -343,11 +343,11 @@ def make_stick_material(name, wood_color, tip_color):
     fade_final2.inputs[1].default_value = 0.0
     links.new(fade_final.outputs["Value"], fade_final2.inputs[0])
 
-    # === PRE-BLEND TIP COLOR with wood for soaked-in look (70% paint, 30% wood) ===
+    # === PRE-BLEND TIP COLOR with wood for soaked-in look (85% paint, 15% wood) ===
     tr, tg, tb = tip_color
     blended_tip = nodes.new("ShaderNodeMixRGB")
     blended_tip.location = (-200, 150)
-    blended_tip.inputs["Fac"].default_value = 0.7
+    blended_tip.inputs["Fac"].default_value = 0.85
     blended_tip.inputs["Color1"].default_value = (wr, wg, wb, 1.0)
     blended_tip.inputs["Color2"].default_value = (tr, tg, tb, 1.0)
 
