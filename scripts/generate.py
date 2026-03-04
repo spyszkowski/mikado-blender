@@ -117,39 +117,26 @@ def add_table(color):
     bpy.ops.rigidbody.object_add()
     table.rigid_body.type = "PASSIVE"
     table.rigid_body.collision_shape = "MESH"
-
-    # Small central mound — sticks land across it and rest at natural angles
-    # instead of all settling flat on a perfectly level surface.
-    mound_r = random.uniform(0.015, 0.025)   # 15–25mm radius
-    mound_h = random.uniform(0.003, 0.006)   # 3–6mm tall
-    bpy.ops.mesh.primitive_cylinder_add(
-        radius=mound_r, depth=mound_h,
-        location=(random.uniform(-0.01, 0.01), random.uniform(-0.01, 0.01), mound_h / 2)
-    )
-    mound = bpy.context.active_object
-    mound.name = "Mound"
-    mound.data.materials.append(mat)   # same colour as table
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-    bpy.ops.rigidbody.object_add()
-    mound.rigid_body.type = "PASSIVE"
-    mound.rigid_body.collision_shape = "MESH"
-
     return table
 
 
 def add_stick(class_name, location, rotation_euler):
     """Create a stick as a cylinder with coloured tip caps."""
-    # Main body — created vertical (local Z = long axis), then rotated via object
+    # Spawn everything VERTICAL (rotation=(0,0,0)) so that after join the
+    # combined object's rotation_euler is cleanly (0,0,0).
+    # We set the desired rotation AFTER rigidbody.object_add() so that
+    # CONVEX_HULL is built from the vertical mesh, but physics starts the
+    # simulation with the object already at the correct spawn orientation.
+    # This avoids the join()-resets-rotation bug that caused hovering.
     bpy.ops.mesh.primitive_cylinder_add(
         radius=D / 2,
         depth=L,
         location=location,
-        rotation=rotation_euler,
+        rotation=(0, 0, 0),
     )
     stick = bpy.context.active_object
     stick.name = f"stick_{class_name}_{random.randint(0, 99999)}"
 
-    # Slight per-stick colour variation — real wood sticks vary in tone
     r, g, b = BODY_COLOR
     jitter = 0.06
     wood_color = (
@@ -161,20 +148,16 @@ def add_stick(class_name, location, rotation_euler):
     stick.data.materials.append(body_mat)
 
     tip_color = TIP_COLORS[class_name]
-
-    # Tip caps — small cylinders at each end, same axis
     tip_len = L * TIP_FRAC
-    for sign in (+1, -1):
-        offset = Vector((0, 0, sign * (L / 2 - tip_len / 2)))
-        rot_mat = stick.rotation_euler.to_matrix()
-        world_offset = rot_mat @ offset
-        tip_loc = Vector(location) + world_offset
 
+    # Tips also spawned vertical — offsets along local Z (the stick axis)
+    for sign in (+1, -1):
+        tip_loc = Vector(location) + Vector((0, 0, sign * (L / 2 - tip_len / 2)))
         bpy.ops.mesh.primitive_cylinder_add(
             radius=D / 2 + 0.0001,
             depth=tip_len,
             location=tip_loc,
-            rotation=rotation_euler,
+            rotation=(0, 0, 0),
         )
         tip = bpy.context.active_object
         tip.name = f"tip_{stick.name}_{sign}"
@@ -186,21 +169,24 @@ def add_stick(class_name, location, rotation_euler):
         bpy.context.view_layer.objects.active = stick
         bpy.ops.object.join()
 
-    # Apply transforms BEFORE adding rigid body.
-    # This bakes rotation into mesh vertices so CONVEX_HULL is computed
-    # from the actual oriented geometry. Must happen before rigidbody.object_add().
-    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    # Apply scale only (rotation is already 0,0,0 — nothing to bake).
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
-    # Rigid body — active (falls under gravity).
-    # CONVEX_HULL respects the object's full matrix — correct for any orientation.
+    # Add rigid body while the object is still vertical.
+    # CONVEX_HULL is computed from local verts — a clean vertical cylinder hull.
     bpy.ops.rigidbody.object_add()
     stick.rigid_body.type = "ACTIVE"
     stick.rigid_body.collision_shape = "CONVEX_HULL"
     stick.rigid_body.mass = 0.005
-    stick.rigid_body.restitution = 0.4   # bouncier — sticks deflect off each other
-    stick.rigid_body.friction = 0.4      # less friction — allows sliding into varied angles
-    stick.rigid_body.angular_damping = 0.1  # low — sticks spin freely on impact
+    stick.rigid_body.restitution = 0.4
+    stick.rigid_body.friction = 0.4
+    stick.rigid_body.angular_damping = 0.1
     stick.rigid_body.linear_damping = 0.1
+
+    # NOW apply the spawn rotation. Bullet reads the object matrix every frame,
+    # so the simulation starts with the stick already at this orientation.
+    # No transform_apply needed — CONVEX_HULL uses local verts × matrix_world.
+    stick.rotation_euler = rotation_euler
 
     stick["class_name"] = class_name
     return stick
