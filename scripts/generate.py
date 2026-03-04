@@ -121,21 +121,49 @@ def add_table(color):
 
 
 def add_stick(class_name, location, rotation_euler):
-    """Create a stick as a cylinder with coloured tip caps."""
-    # Spawn everything VERTICAL (rotation=(0,0,0)) so that after join the
-    # combined object's rotation_euler is cleanly (0,0,0).
-    # We set the desired rotation AFTER rigidbody.object_add() so that
-    # CONVEX_HULL is built from the vertical mesh, but physics starts the
-    # simulation with the object already at the correct spawn orientation.
-    # This avoids the join()-resets-rotation bug that caused hovering.
-    bpy.ops.mesh.primitive_cylinder_add(
-        radius=D / 2,
-        depth=L,
-        location=location,
-        rotation=(0, 0, 0),
+    """Create a stick with coloured tips, built horizontally in local space via bmesh.
+
+    The long axis is along local X so CONVEX_HULL is computed from a horizontal
+    cylinder. No primitive_cylinder_add + join — avoids the join-resets-rotation
+    bug that caused sticks to hover.
+    """
+    tip_len = L * TIP_FRAC
+    segs = 8
+
+    mesh = bpy.data.meshes.new(f"stick_mesh_{class_name}")
+    obj = bpy.data.objects.new(f"stick_{class_name}_{random.randint(0,99999)}", mesh)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+
+    bm = bmesh.new()
+
+    # Body — cylinder along local X
+    bmesh.ops.create_cone(bm,
+        cap_ends=True, cap_tris=False, segments=segs,
+        radius1=D / 2, radius2=D / 2, depth=L,
+        matrix=Matrix.Rotation(math.pi / 2, 4, 'Y'),
     )
-    stick = bpy.context.active_object
-    stick.name = f"stick_{class_name}_{random.randint(0, 99999)}"
+    for f in bm.faces:
+        f.material_index = 0
+
+    # Tip caps at each end along X
+    for sign in (+1, -1):
+        tip_matrix = (Matrix.Translation((sign * (L / 2 - tip_len / 2), 0, 0))
+                      @ Matrix.Rotation(math.pi / 2, 4, 'Y'))
+        bmesh.ops.create_cone(bm,
+            cap_ends=True, cap_tris=False, segments=segs,
+            radius1=D / 2 + 0.0001, radius2=D / 2 + 0.0001, depth=tip_len,
+            matrix=tip_matrix,
+        )
+
+    # Assign tip material to faces whose centroid is near the ends
+    for f in bm.faces:
+        cx = sum(v.co.x for v in f.verts) / len(f.verts)
+        f.material_index = 1 if abs(cx) > (L / 2 - tip_len - 0.001) else 0
+
+    bm.to_mesh(mesh)
+    bm.free()
 
     r, g, b = BODY_COLOR
     jitter = 0.06
@@ -144,52 +172,25 @@ def add_stick(class_name, location, rotation_euler):
         max(0, min(1, g + random.uniform(-jitter, jitter))),
         max(0, min(1, b + random.uniform(-jitter, jitter))),
     )
-    body_mat = make_material(f"body_{stick.name}", wood_color, roughness=random.uniform(0.5, 0.8))
-    stick.data.materials.append(body_mat)
+    obj.data.materials.append(make_material(f"body_{obj.name}", wood_color, roughness=random.uniform(0.5, 0.8)))
+    obj.data.materials.append(make_material(f"tip_{obj.name}", TIP_COLORS[class_name], roughness=0.3))
 
-    tip_color = TIP_COLORS[class_name]
-    tip_len = L * TIP_FRAC
+    obj.location = location
+    obj.rotation_euler = rotation_euler
 
-    # Tips also spawned vertical — offsets along local Z (the stick axis)
-    for sign in (+1, -1):
-        tip_loc = Vector(location) + Vector((0, 0, sign * (L / 2 - tip_len / 2)))
-        bpy.ops.mesh.primitive_cylinder_add(
-            radius=D / 2 + 0.0001,
-            depth=tip_len,
-            location=tip_loc,
-            rotation=(0, 0, 0),
-        )
-        tip = bpy.context.active_object
-        tip.name = f"tip_{stick.name}_{sign}"
-        tip_mat = make_material(f"tipmat_{tip.name}", tip_color, roughness=0.3)
-        tip.data.materials.append(tip_mat)
-
-        tip.select_set(True)
-        stick.select_set(True)
-        bpy.context.view_layer.objects.active = stick
-        bpy.ops.object.join()
-
-    # Apply scale only (rotation is already 0,0,0 — nothing to bake).
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-
-    # Add rigid body while the object is still vertical.
-    # CONVEX_HULL is computed from local verts — a clean vertical cylinder hull.
+    # CONVEX_HULL uses local verts (horizontal) × matrix_world (spawn rotation).
+    # No transform_apply needed — mesh is already in the correct local orientation.
     bpy.ops.rigidbody.object_add()
-    stick.rigid_body.type = "ACTIVE"
-    stick.rigid_body.collision_shape = "CONVEX_HULL"
-    stick.rigid_body.mass = 0.005
-    stick.rigid_body.restitution = 0.4
-    stick.rigid_body.friction = 0.4
-    stick.rigid_body.angular_damping = 0.1
-    stick.rigid_body.linear_damping = 0.1
+    obj.rigid_body.type = "ACTIVE"
+    obj.rigid_body.collision_shape = "CONVEX_HULL"
+    obj.rigid_body.mass = 0.005
+    obj.rigid_body.restitution = 0.4
+    obj.rigid_body.friction = 0.4
+    obj.rigid_body.angular_damping = 0.1
+    obj.rigid_body.linear_damping = 0.1
 
-    # NOW apply the spawn rotation. Bullet reads the object matrix every frame,
-    # so the simulation starts with the stick already at this orientation.
-    # No transform_apply needed — CONVEX_HULL uses local verts × matrix_world.
-    stick.rotation_euler = rotation_euler
-
-    stick["class_name"] = class_name
-    return stick
+    obj["class_name"] = class_name
+    return obj
 
 
 def setup_camera():
@@ -309,7 +310,7 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     # After transform_apply the mesh long axis is local Z.
     # matrix_world is kept current by physics (and frozen above).
     mat = stick_obj.matrix_world
-    half_vec = mat.to_3x3() @ Vector((0, 0, L / 2))
+    half_vec = mat.to_3x3() @ Vector((L / 2, 0, 0))  # long axis is local X
     center = mat.translation
     p1_world = center + half_vec
     p2_world = center - half_vec
