@@ -230,7 +230,11 @@ def make_wood_material(name, base_color, roughness=0.5):
     bsdf = nodes.new("ShaderNodeBsdfPrincipled")
     bsdf.location = (300, 0)
     bsdf.inputs["Roughness"].default_value = roughness
-    bsdf.inputs["Specular IOR Level"].default_value = 0.6
+    # "Specular IOR Level" (Blender 4.0+) was previously called "Specular"
+    for spec_name in ("Specular IOR Level", "Specular"):
+        if spec_name in bsdf.inputs:
+            bsdf.inputs[spec_name].default_value = 0.6
+            break
     links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
 
     tex_coord = nodes.new("ShaderNodeTexCoord")
@@ -240,11 +244,13 @@ def make_wood_material(name, base_color, roughness=0.5):
     wave = nodes.new("ShaderNodeTexWave")
     wave.location = (-500, 200)
     wave.wave_type = "BANDS"
-    wave.bands_direction = "X"
+    if hasattr(wave, "bands_direction"):  # Blender 3.1+
+        wave.bands_direction = "X"
     wave.inputs["Scale"].default_value = random.uniform(40.0, 80.0)
     wave.inputs["Distortion"].default_value = random.uniform(2.0, 4.0)
     wave.inputs["Detail"].default_value = 4.0
-    wave.inputs["Detail Scale"].default_value = 2.0
+    if "Detail Scale" in wave.inputs:  # Blender 3.0+
+        wave.inputs["Detail Scale"].default_value = 2.0
     links.new(tex_coord.outputs["Object"], wave.inputs["Vector"])
 
     # Fine noise for grain micro-variation
@@ -313,7 +319,8 @@ def make_tip_material_realistic(name, tip_color, roughness=0.3):
     wave = nodes.new("ShaderNodeTexWave")
     wave.location = (-500, 200)
     wave.wave_type = "BANDS"
-    wave.bands_direction = "X"
+    if hasattr(wave, "bands_direction"):  # Blender 3.1+
+        wave.bands_direction = "X"
     wave.inputs["Scale"].default_value = random.uniform(300.0, 500.0)
     wave.inputs["Distortion"].default_value = random.uniform(0.5, 1.5)
     wave.inputs["Detail"].default_value = 2.0
