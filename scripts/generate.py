@@ -107,11 +107,100 @@ def make_material(name, color, roughness=0.5):
     return mat
 
 
+def make_cloth_material(name, color, roughness=0.85):
+    """Procedural cloth/felt material with subtle wrinkles and color variation."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    tree = mat.node_tree
+    nodes = tree.nodes
+    links = tree.links
+
+    # Clear default nodes
+    for n in nodes:
+        nodes.remove(n)
+
+    output = nodes.new("ShaderNodeOutputMaterial")
+    output.location = (600, 0)
+
+    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.location = (300, 0)
+    bsdf.inputs["Roughness"].default_value = roughness
+    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+
+    tex_coord = nodes.new("ShaderNodeTexCoord")
+    tex_coord.location = (-800, 0)
+
+    # --- Color variation: low-frequency noise shifts the base color slightly ---
+    noise_color = nodes.new("ShaderNodeTexNoise")
+    noise_color.location = (-400, 200)
+    noise_color.inputs["Scale"].default_value = random.uniform(5.0, 15.0)
+    noise_color.inputs["Detail"].default_value = 3.0
+    noise_color.inputs["Roughness"].default_value = 0.6
+    links.new(tex_coord.outputs["Object"], noise_color.inputs["Vector"])
+
+    color_ramp = nodes.new("ShaderNodeValToRGB")
+    color_ramp.location = (-200, 200)
+    # Base color at 0.4, slightly darker variant at 0.6
+    r, g, b = color
+    darken = 0.85
+    color_ramp.color_ramp.elements[0].position = 0.4
+    color_ramp.color_ramp.elements[0].color = (r, g, b, 1.0)
+    color_ramp.color_ramp.elements[1].position = 0.6
+    color_ramp.color_ramp.elements[1].color = (r * darken, g * darken, b * darken, 1.0)
+    links.new(noise_color.outputs["Fac"], color_ramp.inputs["Fac"])
+    links.new(color_ramp.outputs["Color"], bsdf.inputs["Base Color"])
+
+    # --- Bump: high-frequency noise for fine fabric texture ---
+    noise_fine = nodes.new("ShaderNodeTexNoise")
+    noise_fine.location = (-400, -100)
+    noise_fine.inputs["Scale"].default_value = random.uniform(80.0, 150.0)
+    noise_fine.inputs["Detail"].default_value = 6.0
+    noise_fine.inputs["Roughness"].default_value = 0.7
+    links.new(tex_coord.outputs["Object"], noise_fine.inputs["Vector"])
+
+    # Voronoi for weave-like grain
+    voronoi = nodes.new("ShaderNodeTexVoronoi")
+    voronoi.location = (-400, -300)
+    voronoi.inputs["Scale"].default_value = random.uniform(200.0, 400.0)
+    links.new(tex_coord.outputs["Object"], voronoi.inputs["Vector"])
+
+    # Mix noise + voronoi for combined bump
+    mix_bump = nodes.new("ShaderNodeMixRGB")
+    mix_bump.location = (-200, -200)
+    mix_bump.inputs["Fac"].default_value = 0.3  # mostly noise, some voronoi grain
+    links.new(noise_fine.outputs["Fac"], mix_bump.inputs["Color1"])
+    links.new(voronoi.outputs["Distance"], mix_bump.inputs["Color2"])
+
+    # Large-scale wrinkles (low-frequency noise for cloth folds)
+    noise_wrinkle = nodes.new("ShaderNodeTexNoise")
+    noise_wrinkle.location = (-400, -500)
+    noise_wrinkle.inputs["Scale"].default_value = random.uniform(2.0, 6.0)
+    noise_wrinkle.inputs["Detail"].default_value = 4.0
+    noise_wrinkle.inputs["Roughness"].default_value = 0.5
+    links.new(tex_coord.outputs["Object"], noise_wrinkle.inputs["Vector"])
+
+    # Combine fine texture + wrinkles
+    mix_all = nodes.new("ShaderNodeMixRGB")
+    mix_all.location = (-50, -300)
+    mix_all.inputs["Fac"].default_value = 0.4
+    links.new(mix_bump.outputs["Color"], mix_all.inputs["Color1"])
+    links.new(noise_wrinkle.outputs["Fac"], mix_all.inputs["Color2"])
+
+    bump = nodes.new("ShaderNodeBump")
+    bump.location = (100, -200)
+    bump.inputs["Strength"].default_value = random.uniform(0.02, 0.05)
+    bump.inputs["Distance"].default_value = 0.1
+    links.new(mix_all.outputs["Color"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+
+    return mat
+
+
 def add_table(color):
     bpy.ops.mesh.primitive_plane_add(size=2.0, location=(0, 0, 0))
     table = bpy.context.active_object
     table.name = "Table"
-    mat = make_material("TableMat", color, roughness=0.8)
+    mat = make_cloth_material("TableMat", color, roughness=random.uniform(0.8, 0.95))
     table.data.materials.append(mat)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     bpy.ops.rigidbody.object_add()
