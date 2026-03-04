@@ -391,8 +391,8 @@ def add_stick_realistic(class_name, location, rotation_euler):
     unified shader that blends wood color into soaked-in paint at the tips.
     """
     segs = 16  # smooth profile for tapered ends
-    TAPER_START_FRAC = 0.6  # taper begins at 60% of half-length from center
-    TIP_DIAM_FRAC = 0.75    # tip narrows to 75% of full diameter
+    TAPER_START_FRAC = 0.7  # taper begins at 70% of half-length from center
+    TIP_DIAM_FRAC = 0.35    # tip narrows to 35% of full diameter (near-point)
 
     mesh = bpy.data.meshes.new(f"stick_mesh_{class_name}")
     obj = bpy.data.objects.new(f"stick_{class_name}_{random.randint(0,99999)}", mesh)
