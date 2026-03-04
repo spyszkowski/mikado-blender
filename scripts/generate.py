@@ -117,6 +117,8 @@ def add_table(color):
     bpy.ops.rigidbody.object_add()
     table.rigid_body.type = "PASSIVE"
     table.rigid_body.collision_shape = "MESH"
+    table.rigid_body.use_margin = True
+    table.rigid_body.collision_margin = 0.001  # 1mm — default 40mm causes hovering
     return table
 
 
@@ -183,6 +185,8 @@ def add_stick(class_name, location, rotation_euler):
     bpy.ops.rigidbody.object_add()
     obj.rigid_body.type = "ACTIVE"
     obj.rigid_body.collision_shape = "CONVEX_HULL"
+    obj.rigid_body.use_margin = True
+    obj.rigid_body.collision_margin = 0.001  # 1mm — default 40mm >> 3mm stick diameter
     obj.rigid_body.mass = 0.005
     obj.rigid_body.restitution = 0.2
     obj.rigid_body.friction = 0.6
