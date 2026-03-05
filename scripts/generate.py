@@ -390,9 +390,10 @@ def add_stick_realistic(class_name, location, rotation_euler):
     Single mesh with vertex-based taper (narrowing toward both ends) and a
     unified shader that blends wood color into soaked-in paint at the tips.
     """
-    segs = 16  # smooth profile for tapered ends
+    circ_segs = 12   # vertices around circumference
+    length_rings = 20  # rings along the stick length (enough for smooth taper)
     TAPER_START_FRAC = 0.75  # taper begins at 75% of half-length from center
-    TIP_DIAM_FRAC = 0.55     # tip narrows to 55% of full diameter (visible taper, not needle)
+    TIP_DIAM_FRAC = 0.55     # tip narrows to 55% of full diameter
 
     mesh = bpy.data.meshes.new(f"stick_mesh_{class_name}")
     obj = bpy.data.objects.new(f"stick_{class_name}_{random.randint(0,99999)}", mesh)
@@ -402,27 +403,51 @@ def add_stick_realistic(class_name, location, rotation_euler):
 
     bm = bmesh.new()
 
-    # Single cylinder along local X
-    bmesh.ops.create_cone(bm,
-        cap_ends=True, cap_tris=False, segments=segs,
-        radius1=D / 2, radius2=D / 2, depth=L,
-        matrix=Matrix.Rotation(math.pi / 2, 4, 'Y'),
-    )
-
-    # Apply taper: narrow toward both ends using cosine ease-in
-    # Produces a gradual, natural taper like real mikado sticks
+    # Build stick as a series of rings along local X with per-ring radius
     half_L = L / 2
-    for v in bm.verts:
-        r = math.sqrt(v.co.y ** 2 + v.co.z ** 2)
-        if r > 1e-7:  # skip cap-center vertices
-            t = abs(v.co.x) / half_L  # 0 at center, 1 at tip
-            if t > TAPER_START_FRAC:
-                blend = (t - TAPER_START_FRAC) / (1.0 - TAPER_START_FRAC)
-                # Cosine ease-in: starts slow, accelerates toward tip
-                blend = 1.0 - math.cos(blend * math.pi / 2)
-                factor = 1.0 + (TIP_DIAM_FRAC - 1.0) * blend
-                v.co.y *= factor
-                v.co.z *= factor
+    R = D / 2
+
+    # Create ring vertices
+    rings = []
+    for i in range(length_rings + 1):
+        x = -half_L + i * L / length_rings
+        t = abs(x) / half_L  # 0 at center, 1 at tip
+        if t > TAPER_START_FRAC:
+            blend = (t - TAPER_START_FRAC) / (1.0 - TAPER_START_FRAC)
+            blend = 1.0 - math.cos(blend * math.pi / 2)  # cosine ease-in
+            radius = R * (1.0 + (TIP_DIAM_FRAC - 1.0) * blend)
+        else:
+            radius = R
+        ring_verts = []
+        for j in range(circ_segs):
+            angle = 2 * math.pi * j / circ_segs
+            y = radius * math.cos(angle)
+            z = radius * math.sin(angle)
+            ring_verts.append(bm.verts.new((x, y, z)))
+        rings.append(ring_verts)
+
+    bm.verts.ensure_lookup_table()
+
+    # Connect adjacent rings with quad faces
+    for i in range(len(rings) - 1):
+        for j in range(circ_segs):
+            j_next = (j + 1) % circ_segs
+            bm.faces.new([
+                rings[i][j], rings[i][j_next],
+                rings[i + 1][j_next], rings[i + 1][j],
+            ])
+
+    # Cap ends
+    for ring in (rings[0], rings[-1]):
+        center = bm.verts.new((ring[0].co.x, 0, 0))
+        for j in range(circ_segs):
+            j_next = (j + 1) % circ_segs
+            if ring is rings[0]:
+                bm.faces.new([center, ring[j_next], ring[j]])
+            else:
+                bm.faces.new([center, ring[j], ring[j_next]])
+
+    bm.normal_update()
 
     bm.to_mesh(mesh)
     bm.free()
