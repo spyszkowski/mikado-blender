@@ -445,7 +445,7 @@ def add_stick_realistic(class_name, location, rotation_euler):
     obj.rigid_body.use_margin = True
     obj.rigid_body.collision_margin = 0.001
     obj.rigid_body.mass = 0.005
-    obj.rigid_body.restitution = 0.2
+    obj.rigid_body.restitution = 0.05
     obj.rigid_body.friction = 0.6
     obj.rigid_body.angular_damping = 0.85
     obj.rigid_body.linear_damping = 0.85
@@ -520,7 +520,7 @@ def add_stick(class_name, location, rotation_euler):
     obj.rigid_body.use_margin = True
     obj.rigid_body.collision_margin = 0.001  # 1mm — default 40mm >> 3mm stick diameter
     obj.rigid_body.mass = 0.005
-    obj.rigid_body.restitution = 0.2
+    obj.rigid_body.restitution = 0.05
     obj.rigid_body.friction = 0.6
     obj.rigid_body.angular_damping = 0.85   # high damping so sticks settle into a tight pile
     obj.rigid_body.linear_damping = 0.85   # high damping so sticks stop sliding
@@ -754,9 +754,9 @@ def generate_scene(index):
     for i, class_name in enumerate(all_sticks):
         x = random.uniform(-DROP_W / 2, DROP_W / 2)
         y = random.uniform(-DROP_H / 2, DROP_H / 2)
-        # Stagger heights: first stick at DROP_HEIGHT, last at 2×DROP_HEIGHT.
-        # Sequential landing forces sticks to rest on the growing pile.
-        z = DROP_HEIGHT + (i / max(len(all_sticks) - 1, 1)) * DROP_HEIGHT
+        # Stagger heights: first stick at DROP_HEIGHT, last at 1.5×DROP_HEIGHT.
+        # Smaller stagger keeps sticks from bouncing too far apart.
+        z = DROP_HEIGHT + (i / max(len(all_sticks) - 1, 1)) * DROP_HEIGHT * 0.5
         # Near-horizontal spawn (±17°) matching a real mikado throw; rz is
         # the in-plane compass direction — fully random.
         rx = random.uniform(-0.3, 0.3)

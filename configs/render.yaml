@@ -15,8 +15,8 @@ camera:
 # Keep this well inside camera coverage (±289mm at 500mm height, 60° FOV).
 # Sticks are 170mm long — drop within ±50mm so endpoints stay within ±135mm.
 drop_zone:
-  width_mm: 40
-  height_mm: 40
+  width_mm: 25
+  height_mm: 25
 
 # Table / background
 table:
