@@ -64,7 +64,13 @@ BODY_COLOR = STICKS["body_color"]
 TIP_FRAC = STICKS["tip_fraction"]
 L = STICKS["dimensions"]["length_mm"] / 1000.0   # metres (Blender default unit)
 D = STICKS["dimensions"]["diameter_mm"] / 1000.0
-THICKNESS_PX = STICKS.get("thickness_px", 28)     # OBB width in pixels (matches mikado-judge)
+import math as _math
+# Compute OBB thickness in pixels from actual camera geometry so boxes
+# match the rendered stick width exactly (like real annotated data).
+_fov = _math.radians(RENDER["camera"]["fov_deg"])
+_coverage_w = 2 * CAM_H * _math.tan(_fov / 2)        # metres visible at table level
+THICKNESS_PX = max(4, round(D / _coverage_w * RENDER["output"]["width"]))
+del _math
 
 W_OUT = RENDER["output"]["width"]
 H_OUT = RENDER["output"]["height"]
@@ -726,12 +732,12 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     # Normalise to 0-1
     corners = [(cx / W_OUT, cy / H_OUT) for cx, cy in corners_px]
 
-    xs = [c[0] for c in corners]
-    ys = [c[1] for c in corners]
-    if max(xs) < 0 or min(xs) > 1 or max(ys) < 0 or min(ys) > 1:
-        return None
+    # Skip sticks where any corner is off-screen — clamping individual
+    # corners distorts the OBB orientation and produces wrong labels.
+    for x, y in corners:
+        if x < 0 or x > 1 or y < 0 or y > 1:
+            return None
 
-    corners = [(max(0.0, min(1.0, x)), max(0.0, min(1.0, y))) for x, y in corners]
     return corners
 
 
