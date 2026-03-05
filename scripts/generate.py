@@ -694,7 +694,8 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     perpendicular pixels — matching the mikado-judge line_to_obb_corners
     convention so labels are compatible between real and synthetic data.
 
-    Returns None if the stick is not visible (off-screen).
+    Returns None if the stick is completely off-screen. Partially visible
+    sticks have their corners clamped to [0, 1].
     """
     from bpy_extras.object_utils import world_to_camera_view
 
@@ -730,14 +731,17 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
         (x2 - px, y2 + py),
     ]
 
-    # Normalise to 0-1
-    corners = [(cx / W_OUT, cy / H_OUT) for cx, cy in corners_px]
+    # Normalise to 0-1 and clamp to image bounds
+    corners = [
+        (max(0.0, min(1.0, cx / W_OUT)), max(0.0, min(1.0, cy / H_OUT)))
+        for cx, cy in corners_px
+    ]
 
-    # Skip sticks where any corner is off-screen — clamping individual
-    # corners distorts the OBB orientation and produces wrong labels.
-    for x, y in corners:
-        if x < 0 or x > 1 or y < 0 or y > 1:
-            return None
+    # Skip only if the stick is completely off-screen
+    xs = [c[0] for c in corners]
+    ys = [c[1] for c in corners]
+    if max(xs) == 0.0 or min(xs) == 1.0 or max(ys) == 0.0 or min(ys) == 1.0:
+        return None
 
     return corners
 
