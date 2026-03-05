@@ -26,9 +26,9 @@ counts:
 # The tip is the coloured band at each end of the stick
 tip_colors:
   mikado:  [0.6, 0.1, 0.6]   # purple/spiral — unique
-  blue:    [0.15, 0.25, 0.90] # vivid blue
+  blue:    [0.10, 0.20, 0.80] # true blue (no violet tint)
   red:     [0.90, 0.25, 0.55] # vivid pink/rose
-  yellow:  [0.90, 0.75, 0.15] # saturated gold
+  yellow:  [0.75, 0.55, 0.08] # warm gold/amber
   green:   [0.35, 0.55, 0.40]  # grey-green
 
 # Stick body colour (natural wood)
