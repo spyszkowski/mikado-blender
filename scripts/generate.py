@@ -64,6 +64,7 @@ BODY_COLOR = STICKS["body_color"]
 TIP_FRAC = STICKS["tip_fraction"]
 L = STICKS["dimensions"]["length_mm"] / 1000.0   # metres (Blender default unit)
 D = STICKS["dimensions"]["diameter_mm"] / 1000.0
+THICKNESS_PX = STICKS.get("thickness_px", 28)     # OBB width in pixels (matches mikado-judge)
 
 W_OUT = RENDER["output"]["width"]
 H_OUT = RENDER["output"]["height"]
@@ -682,35 +683,48 @@ def run_physics(stick_objects):
 def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     """Return the 4 corners of the stick's OBB projected into image space (0-1).
 
-    Projects the actual 3D bounding rectangle (4 corners computed from the
-    stick's center, half-length, and half-diameter in world space) so that
-    perspective foreshortening is handled correctly.
+    Projects stick endpoints to pixel space, then expands by THICKNESS_PX/2
+    perpendicular pixels — matching the mikado-judge line_to_obb_corners
+    convention so labels are compatible between real and synthetic data.
 
     Returns None if the stick is not visible (off-screen).
     """
     from bpy_extras.object_utils import world_to_camera_view
 
     mat = stick_obj.matrix_world
-    rot = mat.to_3x3()
-
-    # Local X = long axis, local Y = width axis (perpendicular in the
-    # horizontal plane). We pick the camera-facing perpendicular direction
-    # so the OBB width is always visible from the camera's point of view.
-    axis_long = rot @ Vector((L / 2, 0, 0))
-    axis_wide = rot @ Vector((0, D / 2, 0))
+    half_vec = mat.to_3x3() @ Vector((L / 2, 0, 0))
     center = mat.translation
+    p1_world = center + half_vec
+    p2_world = center - half_vec
 
-    # 4 world-space corners of the OBB rectangle
-    c1 = center + axis_long + axis_wide
-    c2 = center + axis_long - axis_wide
-    c3 = center - axis_long - axis_wide
-    c4 = center - axis_long + axis_wide
+    # Project endpoints to pixel coordinates
+    v1 = world_to_camera_view(scene, cam_obj, p1_world)
+    v2 = world_to_camera_view(scene, cam_obj, p2_world)
+    x1, y1 = v1.x * W_OUT, (1.0 - v1.y) * H_OUT
+    x2, y2 = v2.x * W_OUT, (1.0 - v2.y) * H_OUT
 
-    def proj(p):
-        v = world_to_camera_view(scene, cam_obj, p)
-        return (v.x, 1.0 - v.y)
+    dx = x2 - x1
+    dy = y2 - y1
+    length = math.sqrt(dx * dx + dy * dy)
+    if length < 1e-6:
+        return None
 
-    corners = [proj(c1), proj(c2), proj(c3), proj(c4)]
+    # Perpendicular offset in pixels (same as mikado-judge line_to_obb_corners)
+    theta = math.atan2(dy, dx)
+    half_t = THICKNESS_PX / 2.0
+    px = half_t * math.sin(theta)
+    py = half_t * math.cos(theta)
+
+    # 4 corners in pixel space (same winding as mikado-judge)
+    corners_px = [
+        (x1 - px, y1 + py),
+        (x1 + px, y1 - py),
+        (x2 + px, y2 - py),
+        (x2 - px, y2 + py),
+    ]
+
+    # Normalise to 0-1
+    corners = [(cx / W_OUT, cy / H_OUT) for cx, cy in corners_px]
 
     xs = [c[0] for c in corners]
     ys = [c[1] for c in corners]
