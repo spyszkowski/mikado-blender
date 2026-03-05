@@ -64,13 +64,6 @@ BODY_COLOR = STICKS["body_color"]
 TIP_FRAC = STICKS["tip_fraction"]
 L = STICKS["dimensions"]["length_mm"] / 1000.0   # metres (Blender default unit)
 D = STICKS["dimensions"]["diameter_mm"] / 1000.0
-import math as _math
-# Compute OBB thickness in pixels from actual camera geometry so boxes
-# match the rendered stick width exactly (like real annotated data).
-_fov = _math.radians(RENDER["camera"]["fov_deg"])
-_coverage_w = 2 * CAM_H * _math.tan(_fov / 2)        # metres visible at table level
-THICKNESS_PX = max(4, round(D / _coverage_w * RENDER["output"]["width"]))
-del _math
 
 W_OUT = RENDER["output"]["width"]
 H_OUT = RENDER["output"]["height"]
@@ -78,6 +71,14 @@ SAMPLES = RENDER["output"]["samples"]
 ENGINE = RENDER["output"]["engine"]
 
 CAM_H = RENDER["camera"]["height_mm"] / 1000.0
+
+import math as _math
+# Compute OBB thickness in pixels from actual camera geometry so boxes
+# match the rendered stick width exactly (like real annotated data).
+_fov = _math.radians(RENDER["camera"]["fov_deg"])
+_coverage_w = 2 * CAM_H * _math.tan(_fov / 2)        # metres visible at table level
+THICKNESS_PX = max(4, round(D / _coverage_w * W_OUT))
+del _math
 DROP_W = RENDER["drop_zone"]["width_mm"] / 1000.0
 DROP_H = RENDER["drop_zone"]["height_mm"] / 1000.0
 DROP_HEIGHT = RENDER["physics"]["drop_height_mm"] / 1000.0
