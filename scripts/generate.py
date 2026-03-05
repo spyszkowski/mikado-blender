@@ -687,15 +687,56 @@ def run_physics(stick_objects):
 # Label extraction
 # ---------------------------------------------------------------------------
 
+def _clip_line_to_rect(x1, y1, x2, y2, xmin, ymin, xmax, ymax):
+    """Clip a line segment to a rectangle using Cohen-Sutherland algorithm.
+
+    Returns clipped (x1, y1, x2, y2) or None if entirely outside.
+    """
+    INSIDE, LEFT, RIGHT, BOTTOM, TOP = 0, 1, 2, 4, 8
+
+    def _code(x, y):
+        c = INSIDE
+        if x < xmin:   c |= LEFT
+        elif x > xmax: c |= RIGHT
+        if y < ymin:   c |= BOTTOM
+        elif y > ymax: c |= TOP
+        return c
+
+    c1, c2 = _code(x1, y1), _code(x2, y2)
+    for _ in range(20):
+        if not (c1 | c2):
+            return x1, y1, x2, y2
+        if c1 & c2:
+            return None
+        c = c1 or c2
+        dx, dy = x2 - x1, y2 - y1
+        if c & TOP:
+            x = x1 + dx * (ymax - y1) / dy if dy else x1
+            y = ymax
+        elif c & BOTTOM:
+            x = x1 + dx * (ymin - y1) / dy if dy else x1
+            y = ymin
+        elif c & RIGHT:
+            y = y1 + dy * (xmax - x1) / dx if dx else y1
+            x = xmax
+        elif c & LEFT:
+            y = y1 + dy * (xmin - x1) / dx if dx else y1
+            x = xmin
+        if c == c1:
+            x1, y1, c1 = x, y, _code(x, y)
+        else:
+            x2, y2, c2 = x, y, _code(x, y)
+    return None
+
+
 def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     """Return the 4 corners of the stick's OBB projected into image space (0-1).
 
-    Projects stick endpoints to pixel space, then expands by THICKNESS_PX/2
-    perpendicular pixels — matching the mikado-judge line_to_obb_corners
-    convention so labels are compatible between real and synthetic data.
+    Projects stick endpoints to pixel space, clips the centerline to the
+    image bounds, then expands by THICKNESS_PX/2 perpendicular pixels —
+    matching the mikado-judge line_to_obb_corners convention.
 
-    Returns None if the stick is completely off-screen. Partially visible
-    sticks have their corners clamped to [0, 1].
+    Returns None if the stick is completely off-screen.
     """
     from bpy_extras.object_utils import world_to_camera_view
 
@@ -710,6 +751,17 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     v2 = world_to_camera_view(scene, cam_obj, p2_world)
     x1, y1 = v1.x * W_OUT, (1.0 - v1.y) * H_OUT
     x2, y2 = v2.x * W_OUT, (1.0 - v2.y) * H_OUT
+
+    # Clip the centerline to the image rectangle (with a small margin for
+    # the perpendicular expansion so OBB corners don't poke out too far)
+    margin = THICKNESS_PX / 2.0 + 1
+    clipped = _clip_line_to_rect(
+        x1, y1, x2, y2,
+        -margin, -margin, W_OUT + margin, H_OUT + margin,
+    )
+    if clipped is None:
+        return None
+    x1, y1, x2, y2 = clipped
 
     dx = x2 - x1
     dy = y2 - y1
@@ -731,17 +783,11 @@ def get_stick_obb_in_image(stick_obj, cam_obj, scene):
         (x2 - px, y2 + py),
     ]
 
-    # Normalise to 0-1 and clamp to image bounds
+    # Normalise to 0-1, clamp any residual overshoot from perpendicular expansion
     corners = [
         (max(0.0, min(1.0, cx / W_OUT)), max(0.0, min(1.0, cy / H_OUT)))
         for cx, cy in corners_px
     ]
-
-    # Skip only if the stick is completely off-screen
-    xs = [c[0] for c in corners]
-    ys = [c[1] for c in corners]
-    if max(xs) == 0.0 or min(xs) == 1.0 or max(ys) == 0.0 or min(ys) == 1.0:
-        return None
 
     return corners
 
