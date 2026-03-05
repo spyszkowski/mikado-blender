@@ -391,8 +391,8 @@ def add_stick_realistic(class_name, location, rotation_euler):
     unified shader that blends wood color into soaked-in paint at the tips.
     """
     segs = 16  # smooth profile for tapered ends
-    TAPER_START_FRAC = 0.7  # taper begins at 70% of half-length from center
-    TIP_DIAM_FRAC = 0.35    # tip narrows to 35% of full diameter (near-point)
+    TAPER_START_FRAC = 0.75  # taper begins at 75% of half-length from center
+    TIP_DIAM_FRAC = 0.55     # tip narrows to 55% of full diameter (visible taper, not needle)
 
     mesh = bpy.data.meshes.new(f"stick_mesh_{class_name}")
     obj = bpy.data.objects.new(f"stick_{class_name}_{random.randint(0,99999)}", mesh)
@@ -409,7 +409,8 @@ def add_stick_realistic(class_name, location, rotation_euler):
         matrix=Matrix.Rotation(math.pi / 2, 4, 'Y'),
     )
 
-    # Apply taper: narrow toward both ends using smoothstep
+    # Apply taper: narrow toward both ends using cosine ease-in
+    # Produces a gradual, natural taper like real mikado sticks
     half_L = L / 2
     for v in bm.verts:
         r = math.sqrt(v.co.y ** 2 + v.co.z ** 2)
@@ -417,7 +418,8 @@ def add_stick_realistic(class_name, location, rotation_euler):
             t = abs(v.co.x) / half_L  # 0 at center, 1 at tip
             if t > TAPER_START_FRAC:
                 blend = (t - TAPER_START_FRAC) / (1.0 - TAPER_START_FRAC)
-                blend = blend * blend * (3.0 - 2.0 * blend)  # smoothstep
+                # Cosine ease-in: starts slow, accelerates toward tip
+                blend = 1.0 - math.cos(blend * math.pi / 2)
                 factor = 1.0 + (TIP_DIAM_FRAC - 1.0) * blend
                 v.co.y *= factor
                 v.co.z *= factor
