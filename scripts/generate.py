@@ -682,43 +682,35 @@ def run_physics(stick_objects):
 def get_stick_obb_in_image(stick_obj, cam_obj, scene):
     """Return the 4 corners of the stick's OBB projected into image space (0-1).
 
+    Projects the actual 3D bounding rectangle (4 corners computed from the
+    stick's center, half-length, and half-diameter in world space) so that
+    perspective foreshortening is handled correctly.
+
     Returns None if the stick is not visible (off-screen).
     """
     from bpy_extras.object_utils import world_to_camera_view
 
-    # After transform_apply the mesh long axis is local Z.
-    # matrix_world is kept current by physics (and frozen above).
     mat = stick_obj.matrix_world
-    half_vec = mat.to_3x3() @ Vector((L / 2, 0, 0))  # long axis is local X
+    rot = mat.to_3x3()
+
+    # Local X = long axis, local Y = width axis (perpendicular in the
+    # horizontal plane). We pick the camera-facing perpendicular direction
+    # so the OBB width is always visible from the camera's point of view.
+    axis_long = rot @ Vector((L / 2, 0, 0))
+    axis_wide = rot @ Vector((0, D / 2, 0))
     center = mat.translation
-    p1_world = center + half_vec
-    p2_world = center - half_vec
+
+    # 4 world-space corners of the OBB rectangle
+    c1 = center + axis_long + axis_wide
+    c2 = center + axis_long - axis_wide
+    c3 = center - axis_long - axis_wide
+    c4 = center - axis_long + axis_wide
 
     def proj(p):
         v = world_to_camera_view(scene, cam_obj, p)
         return (v.x, 1.0 - v.y)
 
-    p1 = proj(p1_world)
-    p2 = proj(p2_world)
-
-    dx = p2[0] - p1[0]
-    dy = p2[1] - p1[1]
-    length = math.sqrt(dx * dx + dy * dy)
-    if length < 1e-6:
-        return None
-
-    stick_len_img = length
-    half_t = (D / L) * stick_len_img / 2.0
-
-    px = -dy / length * half_t
-    py = dx / length * half_t
-
-    corners = [
-        (p1[0] - px, p1[1] - py),
-        (p1[0] + px, p1[1] + py),
-        (p2[0] + px, p2[1] + py),
-        (p2[0] - px, p2[1] - py),
-    ]
+    corners = [proj(c1), proj(c2), proj(c3), proj(c4)]
 
     xs = [c[0] for c in corners]
     ys = [c[1] for c in corners]
