@@ -11,8 +11,8 @@ names:
 
 # Physical dimensions (mm, real world)
 dimensions:
-  length_mm: 170        # ~17cm standard Mikado stick
-  diameter_mm: 4        # ~4mm diameter (visually matches real sticks from above)
+  length_mm: 180        # 18cm standard Mikado stick
+  diameter_mm: 3        # 3mm diameter
 
 # Count of each stick type per scene (max per render)
 counts:
