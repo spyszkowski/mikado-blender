@@ -214,11 +214,10 @@ def add_table(color):
 
 
 def make_stick_material(name, wood_color, tip_color):
-    """Unified stick material: smooth bamboo body with fading soaked-in paint at tips.
+    """Unified stick material: smooth bamboo body with sharp dipped-paint tips.
 
     Uses Object-space X position to blend wood color into tip paint color
-    with a noisy fade boundary. No separate tip geometry needed.
-    Compatible with Blender 2.82+.
+    with a sharp boundary (like real dipped paint). Compatible with Blender 2.82+.
     """
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -230,8 +229,8 @@ def make_stick_material(name, wood_color, tip_color):
         nodes.remove(n)
 
     tip_len = L * TIP_FRAC
-    fade_start = L / 2 - tip_len * 1.3   # fade begins slightly inside tip zone
-    fade_range = tip_len * 1.3
+    fade_start = L / 2 - tip_len          # paint starts exactly at tip boundary
+    fade_range = tip_len * 0.15           # sharp transition (~3mm)
 
     # --- Output + BSDF ---
     output = nodes.new("ShaderNodeOutputMaterial")
@@ -320,7 +319,7 @@ def make_stick_material(name, wood_color, tip_color):
     noise_mul = nodes.new("ShaderNodeMath")
     noise_mul.location = (50, -300)
     noise_mul.operation = "MULTIPLY"
-    noise_mul.inputs[1].default_value = 0.3  # ±0.15 perturbation
+    noise_mul.inputs[1].default_value = 0.08  # ±0.04 — subtle edge irregularity
     links.new(noise_sub.outputs["Value"], noise_mul.inputs[0])
 
     # Add noise to fade gradient

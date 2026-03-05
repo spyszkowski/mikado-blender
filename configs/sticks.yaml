@@ -35,7 +35,7 @@ tip_colors:
 body_color: [0.78, 0.62, 0.42]
 
 # Tip length as fraction of total stick length
-tip_fraction: 0.18
+tip_fraction: 0.13
 
 # YOLO-OBB label thickness (pixels) at output resolution
 # This must match the value used in mikado-judge/configs/classes.yaml
