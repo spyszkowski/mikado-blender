@@ -15,8 +15,8 @@ camera:
 # Keep this well inside camera coverage (±289mm at 500mm height, 60° FOV).
 # Sticks are 170mm long — drop within ±50mm so endpoints stay within ±135mm.
 drop_zone:
-  width_mm: 100
-  height_mm: 100
+  width_mm: 40
+  height_mm: 40
 
 # Table / background
 table:
@@ -29,12 +29,12 @@ table:
 
 # Lighting: random point light above scene
 lighting:
-  min_energy: 800
-  max_energy: 2000
+  min_energy: 2500
+  max_energy: 4000
   jitter_mm: 100        # random offset from centre
 
 # Physics simulation
 physics:
-  drop_height_mm: 300   # height from which sticks are dropped (must be >> stick half-length=85mm)
-  drop_spread_mm: 30    # horizontal spread of drop positions
+  drop_height_mm: 150   # height from which sticks are dropped (must be >> stick half-length=85mm)
+  drop_spread_mm: 15    # horizontal spread of drop positions
   sim_steps: 150        # frames to simulate; sticks fall ~1.5s then settle with high damping

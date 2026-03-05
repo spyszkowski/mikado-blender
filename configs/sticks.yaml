@@ -12,7 +12,7 @@ names:
 # Physical dimensions (mm, real world)
 dimensions:
   length_mm: 170        # ~17cm standard Mikado stick
-  diameter_mm: 3        # ~3mm diameter
+  diameter_mm: 4        # ~4mm diameter (visually matches real sticks from above)
 
 # Count of each stick type per scene (max per render)
 counts:
@@ -26,16 +26,16 @@ counts:
 # The tip is the coloured band at each end of the stick
 tip_colors:
   mikado:  [0.6, 0.1, 0.6]   # purple/spiral — unique
-  blue:    [0.25, 0.35, 0.85] # muted blue
-  red:     [0.85, 0.35, 0.45] # pink/rose
-  yellow:  [0.85, 0.70, 0.25] # warm gold
+  blue:    [0.15, 0.25, 0.90] # vivid blue
+  red:     [0.90, 0.25, 0.55] # vivid pink/rose
+  yellow:  [0.90, 0.75, 0.15] # saturated gold
   green:   [0.35, 0.55, 0.40]  # grey-green
 
 # Stick body colour (natural wood)
-body_color: [0.85, 0.72, 0.52]
+body_color: [0.78, 0.62, 0.42]
 
 # Tip length as fraction of total stick length
-tip_fraction: 0.08
+tip_fraction: 0.18
 
 # YOLO-OBB label thickness (pixels) at output resolution
 # This must match the value used in mikado-judge/configs/classes.yaml

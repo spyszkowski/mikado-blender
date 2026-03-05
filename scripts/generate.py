@@ -347,7 +347,7 @@ def make_stick_material(name, wood_color, tip_color):
     tr, tg, tb = tip_color
     blended_tip = nodes.new("ShaderNodeMixRGB")
     blended_tip.location = (-200, 150)
-    blended_tip.inputs["Fac"].default_value = 0.85
+    blended_tip.inputs["Fac"].default_value = 0.95
     blended_tip.inputs["Color1"].default_value = (wr, wg, wb, 1.0)
     blended_tip.inputs["Color2"].default_value = (tr, tg, tb, 1.0)
 
@@ -447,8 +447,8 @@ def add_stick_realistic(class_name, location, rotation_euler):
     obj.rigid_body.mass = 0.005
     obj.rigid_body.restitution = 0.2
     obj.rigid_body.friction = 0.6
-    obj.rigid_body.angular_damping = 0.6
-    obj.rigid_body.linear_damping = 0.6
+    obj.rigid_body.angular_damping = 0.85
+    obj.rigid_body.linear_damping = 0.85
 
     obj["class_name"] = class_name
     return obj
@@ -522,8 +522,8 @@ def add_stick(class_name, location, rotation_euler):
     obj.rigid_body.mass = 0.005
     obj.rigid_body.restitution = 0.2
     obj.rigid_body.friction = 0.6
-    obj.rigid_body.angular_damping = 0.6   # damp rotation so sticks settle quickly
-    obj.rigid_body.linear_damping = 0.6    # damp translation so sticks stop sliding
+    obj.rigid_body.angular_damping = 0.85   # high damping so sticks settle into a tight pile
+    obj.rigid_body.linear_damping = 0.85   # high damping so sticks stop sliding
 
     obj["class_name"] = class_name
     return obj
@@ -559,8 +559,11 @@ def setup_camera():
 def setup_lighting():
     bpy.ops.object.light_add(type="SUN", location=(0, 0, CAM_H))
     sun = bpy.context.active_object
-    sun.rotation_euler = (0.0, 0.0, 0.0)
-    sun.data.energy = random.uniform(1.0, 2.0)
+    # Tilt sun 15-25° for directional shadows and specular highlights on sticks
+    tilt_angle = math.radians(random.uniform(15.0, 25.0))
+    tilt_dir = random.uniform(0, 2 * math.pi)
+    sun.rotation_euler = (tilt_angle, 0.0, tilt_dir)
+    sun.data.energy = random.uniform(2.5, 4.0)
     sun.data.angle = math.radians(10)
 
     warm = random.uniform(0.95, 1.0)
@@ -573,7 +576,7 @@ def setup_lighting():
     bg_node = world.node_tree.nodes.get("Background")
     if bg_node:
         bg_node.inputs["Color"].default_value = (warm, 1.0, cool, 1.0)
-        bg_node.inputs["Strength"].default_value = random.uniform(0.4, 0.6)
+        bg_node.inputs["Strength"].default_value = random.uniform(0.2, 0.35)
 
     return sun
 
