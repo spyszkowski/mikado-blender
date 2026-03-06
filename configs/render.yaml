@@ -6,6 +6,15 @@ output:
   samples: 16           # Cycles render samples — 16 gives clean shadows on GPU
   engine: CYCLES        # CYCLES works headless; BLENDER_WORKBENCH/EEVEE require a display
 
+# High-res preset: matches real phone camera resolution (4624x3472).
+# Use with: --resolution highres
+# Then tile with mikado-judge/scripts/tile_dataset.py for training.
+output_highres:
+  width: 4624
+  height: 3472
+  samples: 16
+  engine: CYCLES
+
 camera:
   height_mm: 500        # camera height above table in mm
   fov_deg: 60           # field of view in degrees

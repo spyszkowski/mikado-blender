@@ -39,6 +39,8 @@ parser.add_argument("--config", default="configs", help="Config directory")
 parser.add_argument("--seed", type=int, default=0, help="Random seed (0 = random)")
 parser.add_argument("--stick-style", choices=["simple", "realistic"], default="simple",
                     help="Stick material style: simple (flat color) or realistic (wood grain + ring tips)")
+parser.add_argument("--resolution", choices=["default", "highres"], default="default",
+                    help="Output resolution: default (1280x960) or highres (4624x3472 for tiling)")
 args = parser.parse_args(script_args)
 
 random.seed(args.seed if args.seed != 0 else None)
@@ -65,10 +67,12 @@ TIP_FRAC = STICKS["tip_fraction"]
 L = STICKS["dimensions"]["length_mm"] / 1000.0   # metres (Blender default unit)
 D = STICKS["dimensions"]["diameter_mm"] / 1000.0
 
-W_OUT = RENDER["output"]["width"]
-H_OUT = RENDER["output"]["height"]
-SAMPLES = RENDER["output"]["samples"]
-ENGINE = RENDER["output"]["engine"]
+_output_key = "output_highres" if args.resolution == "highres" else "output"
+_output_cfg = RENDER.get(_output_key, RENDER["output"])
+W_OUT = _output_cfg["width"]
+H_OUT = _output_cfg["height"]
+SAMPLES = _output_cfg["samples"]
+ENGINE = _output_cfg["engine"]
 
 CAM_H = RENDER["camera"]["height_mm"] / 1000.0
 
